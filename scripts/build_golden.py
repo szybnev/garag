@@ -151,13 +151,21 @@ def _stratified_sample(
     chunks: pd.DataFrame,
     targets: dict[str, int],
     rng: random.Random,
+    exclude_chunk_ids: set[str],
 ) -> list[tuple[str, dict[str, Any]]]:
-    """Pick (category, chunk_row) pairs to send to the LLM."""
+    """Pick (category, chunk_row) pairs to send to the LLM.
+
+    `exclude_chunk_ids` ensures the second run of build_golden does not
+    pick chunks that already produced a Q/A pair — otherwise we end up
+    with duplicates because the LLM is deterministic at fixed seed.
+    """
     samples: list[tuple[str, dict[str, Any]]] = []
     for category, requested in targets.items():
         spec = CATEGORY_SPECS[category]
         pool = chunks[
-            chunks["source"].isin(spec["sources"]) & (chunks["token_count"] >= spec["min_tokens"])
+            chunks["source"].isin(spec["sources"])
+            & (chunks["token_count"] >= spec["min_tokens"])
+            & (~chunks["chunk_id"].isin(exclude_chunk_ids))
         ]
         n_take = requested
         if len(pool) < requested:
@@ -213,7 +221,8 @@ def main() -> None:
         return
 
     rng = random.Random(args.seed)  # noqa: S311 — reproducibility seed, not crypto
-    samples = _stratified_sample(df, todo, rng)
+    used_chunk_ids = {obj.get("source_chunk_id", "") for obj in existing.values()}
+    samples = _stratified_sample(df, todo, rng, exclude_chunk_ids=used_chunk_ids)
     print(f"[sample] {len(samples)} chunks to query")
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
