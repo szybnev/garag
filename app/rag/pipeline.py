@@ -9,6 +9,7 @@ downstream consumption.
 
 from __future__ import annotations
 
+import time
 from typing import TYPE_CHECKING, Literal
 
 from app.rag.fusion import (
@@ -52,17 +53,39 @@ class HybridRetriever:
         *,
         candidate_k: int = 20,
         top_k: int = 10,
+        timings: dict[str, float] | None = None,
     ) -> list[ScoredChunk]:
-        dense_hits = self.dense.search(query, top_k=candidate_k)
-        sparse_hits = self.sparse.search(query, top_k=candidate_k)
+        """Run the hybrid pipeline.
 
+        If `timings` is supplied, per-stage elapsed seconds are written
+        into it under keys `dense`, `sparse`, `fusion`, and `rerank`
+        (the last only when a reranker is attached). The caller owns
+        the dict — we only write to it.
+        """
+        t0 = time.perf_counter()
+        dense_hits = self.dense.search(query, top_k=candidate_k)
+        if timings is not None:
+            timings["dense"] = time.perf_counter() - t0
+
+        t0 = time.perf_counter()
+        sparse_hits = self.sparse.search(query, top_k=candidate_k)
+        if timings is not None:
+            timings["sparse"] = time.perf_counter() - t0
+
+        t0 = time.perf_counter()
         if self.fusion == "rrf":
             fused = reciprocal_rank_fusion(dense_hits, sparse_hits, k=self.rrf_k, top_k=candidate_k)
         else:
             fused = alpha_weighted_fusion(
                 dense_hits, sparse_hits, alpha=self.alpha, top_k=candidate_k
             )
+        if timings is not None:
+            timings["fusion"] = time.perf_counter() - t0
 
         if self.reranker is not None:
-            return self.reranker.rerank(query, fused, top_k=top_k)
+            t0 = time.perf_counter()
+            reranked = self.reranker.rerank(query, fused, top_k=top_k)
+            if timings is not None:
+                timings["rerank"] = time.perf_counter() - t0
+            return reranked
         return fused[:top_k]

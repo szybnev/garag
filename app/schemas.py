@@ -104,10 +104,12 @@ class QueryRequest(BaseModel):
 class QueryResponse(BaseModel):
     """Public POST `/query` response.
 
-    The structured-output schema fed to Ollama via `format=...` on d9.
     `confidence` is the model's self-reported confidence in `[0, 1]`,
     `used_chunks` is the ordered list of `chunk_id`s that the model
     actually based the answer on (a subset of the retrieved candidates).
+    `latency_ms` is an optional per-stage timing breakdown populated by
+    `QueryPipeline`; keys are free-form stage names (`dense`, `sparse`,
+    `fusion`, `rerank`, `gen`, `total`, …) and values are milliseconds.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -116,3 +118,4 @@ class QueryResponse(BaseModel):
     citations: list[Citation] = Field(default_factory=list)
     confidence: float = Field(ge=0.0, le=1.0)
     used_chunks: list[str] = Field(default_factory=list)
+    latency_ms: dict[str, float] | None = None

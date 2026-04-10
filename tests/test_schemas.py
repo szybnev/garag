@@ -261,3 +261,34 @@ def test_query_response_json_schema_is_serialisable() -> None:
     assert "citations" in schema["properties"]
     assert "confidence" in schema["properties"]
     assert "used_chunks" in schema["properties"]
+    assert "latency_ms" in schema["properties"]
+
+
+def test_query_response_latency_ms_default_none() -> None:
+    resp = QueryResponse(answer="ok", confidence=0.5)
+    assert resp.latency_ms is None
+
+
+def test_query_response_latency_ms_roundtrip() -> None:
+    timings = {"dense": 12.3, "sparse": 4.5, "fusion": 0.2, "rerank": 250.0, "gen": 4800.0}
+    resp = QueryResponse(answer="ok", confidence=0.9, latency_ms=timings)
+    assert resp.latency_ms is not None
+    assert resp.latency_ms["dense"] == pytest.approx(12.3)
+    assert set(resp.latency_ms) == set(timings)
+    dumped = resp.model_dump()
+    assert dumped["latency_ms"]["gen"] == pytest.approx(4800.0)
+
+
+def test_query_response_latency_ms_accepts_arbitrary_keys() -> None:
+    """Free-form stage names so future stages (guardrails_in/out) don't need schema changes."""
+    resp = QueryResponse(
+        answer="ok",
+        confidence=0.5,
+        latency_ms={"guardrails_in": 3.1, "total": 5000.0},
+    )
+    assert resp.latency_ms == {"guardrails_in": 3.1, "total": 5000.0}
+
+
+def test_query_response_extra_top_level_key_still_rejected() -> None:
+    with pytest.raises(ValidationError):
+        QueryResponse(answer="ok", confidence=0.5, unknown_field=42)  # type: ignore[call-arg]

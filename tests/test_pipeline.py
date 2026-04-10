@@ -141,3 +141,37 @@ def test_hybrid_reranker_sees_fused_not_raw() -> None:
     retriever.retrieve("q", candidate_k=5, top_k=5)
     cids = {c.chunk_id for c in (reranker.last_candidates or [])}
     assert cids == {"only-dense", "only-sparse"}
+
+
+def test_hybrid_retrieve_populates_timings_with_reranker() -> None:
+    dense = [_chunk(c, 1.0) for c in "abc"]
+    sparse = [_chunk(c, 1.0) for c in "abc"]
+    reranker = _StubReranker()
+    retriever = _make_retriever(
+        dense_hits=dense, sparse_hits=sparse, reranker=reranker, fusion="rrf"
+    )
+    timings: dict[str, float] = {}
+    retriever.retrieve("q", candidate_k=3, top_k=2, timings=timings)
+    assert set(timings) == {"dense", "sparse", "fusion", "rerank"}
+    for value in timings.values():
+        assert isinstance(value, float)
+        assert value >= 0.0
+
+
+def test_hybrid_retrieve_timings_without_reranker_skips_rerank_key() -> None:
+    dense = [_chunk(c, 1.0) for c in "ab"]
+    sparse = [_chunk(c, 1.0) for c in "ab"]
+    retriever = _make_retriever(dense_hits=dense, sparse_hits=sparse, fusion="rrf")
+    timings: dict[str, float] = {}
+    retriever.retrieve("q", candidate_k=2, top_k=2, timings=timings)
+    assert set(timings) == {"dense", "sparse", "fusion"}
+    assert "rerank" not in timings
+
+
+def test_hybrid_retrieve_backward_compat_without_timings_kwarg() -> None:
+    """Calling retrieve() without timings= must behave exactly as before."""
+    dense = [_chunk(c, 1.0 - i * 0.1) for i, c in enumerate("abcde")]
+    sparse = [_chunk(c, 1.0 - i * 0.1) for i, c in enumerate("abcde")]
+    retriever = _make_retriever(dense_hits=dense, sparse_hits=sparse, fusion="rrf")
+    out = retriever.retrieve("q", candidate_k=5, top_k=3)
+    assert len(out) == 3
