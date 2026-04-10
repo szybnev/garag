@@ -54,8 +54,8 @@ cleared with 11–16 п.п. headroom. The weak category is **tool_usage** (Recal
 | Sparse | `rank_bm25.BM25Okapi`, **tuned** `k1=0.8, b=0.5` + nltk english stopwords |
 | Fusion | alpha-weighted min-max, **tuned** `alpha=0.3` (RRF k=60 also implemented) |
 | Reranker | `BAAI/bge-reranker-v2-m3` cross-encoder, top-20 → top-5 |
-| Generator (d9) | `qwen3.5:14b` via Ollama `/api/chat` with `think=false` |
-| LLM-as-judge | `qwen3.5:35b` (separate from generator) |
+| Generator (d9) | `qwen3.5:35b` via Ollama `/api/chat` with `think=false` |
+| LLM-as-judge | `qwen3.5:35b` (same model — MoE 36B is the largest available locally; self-bias caveat acknowledged for d13) |
 | Structured output | `app.schemas.QueryResponse.model_json_schema()` → Ollama `format=...` |
 | Web layer (d10–d11) | FastAPI + Gradio, Docker Compose |
 | Observability (d11) | Prometheus + Grafana, anonymous viewer |
@@ -119,7 +119,7 @@ bd sync                                          # MUST run before git push
                              │
                   ┌──────────▼──────────────┐
                   │   Generator (d9)        │  app/rag/generator.py
-                  │   qwen3.5:14b / Ollama  │  /api/chat, think=false
+                  │   qwen3.5:35b / Ollama  │  /api/chat, think=false
                   │   format=QueryResponse  │  structured output
                   └──────────┬──────────────┘
                              │
@@ -139,10 +139,29 @@ touching the affected modules.**
   `content` field with the actual answer in `thinking`. Always use the **native
   Ollama `/api/chat`** with `{"think": false}` in the payload. Pattern verified
   in `hw12-advanced-rag` from the parent `gigaschool` repo.
+- **Ollama structured output on MoE qwen3.5 is leaky.** Feeding the Ollama
+  `format` field a JSON schema with many `required` fields per nested object
+  (we tried the full `QueryResponse.model_json_schema()` including
+  `Citation.source` / `Citation.url`) reliably produces JSON missing the
+  `required` fields — 20/20 golden queries failed Pydantic validation on
+  `citations[].source`. `app/rag/generator.py` sidesteps this by asking the
+  LLM only for `chunk_id` + `quote` per citation and hydrating `source` /
+  `url` post-hoc from the retrieved chunks. **Do not** expand the LLM-side
+  schema without re-running `scripts/validate_generator.py`.
 - **Ollama lives outside Docker Compose.** The `ollama` container is started
   separately on the host. The app inside Compose reaches it via
   `http://host.docker.internal:11434` with `extra_hosts: ["host.docker.internal:host-gateway"]`
   in `docker-compose.yml` (Linux requires the explicit `host-gateway` mapping).
+  **Running scripts from the host** (e.g. `scripts/validate_generator.py`)
+  must override `OLLAMA_URL=http://localhost:11434` — `host.docker.internal`
+  only resolves inside the compose network.
+- **`FlagEmbedding` / `FlagReranker` hang on HuggingFace ETag checks.** Even
+  when the model is fully cached under `~/.cache/huggingface/hub/`, the init
+  path opens a connection to HuggingFace Hub to check for newer revisions and
+  can block for minutes (observed with `bge-reranker-v2-m3` on d9). Always
+  set `HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1` for any script that constructs
+  a retriever or reranker from CLI, and keep those exports in the Makefile /
+  Dockerfile once you wire them up.
 - **Qdrant ports are shifted to 6380/6381.** `docker-compose.yml` maps
   `6380:6333` and `6381:6334` to avoid clashing with any default-port Qdrant the
   user might already have running. `app/config.py` and `.env.example` reflect this.

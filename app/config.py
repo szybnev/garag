@@ -26,7 +26,7 @@ class Settings(BaseSettings):
 
     # Ollama (external container on the host)
     ollama_url: str = "http://host.docker.internal:11434"
-    ollama_model: str = "qwen3.5:14b"
+    ollama_model: str = "qwen3.5:35b"
     ollama_judge_model: str = "qwen3.5:35b"
     ollama_keep_alive: str = "30s"
 

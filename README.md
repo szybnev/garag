@@ -21,7 +21,7 @@ query
 [input guardrails] → [dense (bge-m3) + sparse (BM25)] → [RRF fusion]
   │                                                           │
   ▼                                                           ▼
-[reranker bge-reranker-v2-m3] ──► [generator qwen3.5:14b via Ollama, structured output]
+[reranker bge-reranker-v2-m3] ──► [generator qwen3.5:35b via Ollama, structured output]
                                                               │
                                                               ▼
                                                    [output guardrails]
@@ -30,7 +30,7 @@ query
                                              QueryResponse {answer, citations[], confidence, used_chunks[]}
 ```
 
-Full design rationale — NFR table with targets, choice of `bge-m3`/`qwen3.5:14b`/`RecursiveChunker`, HackerOne metadata-only stance, and the explicit list of things GaRAG does not attempt — lives in [`docs/design.md`](./docs/design.md).
+Full design rationale — NFR table with targets, choice of `bge-m3`/`qwen3.5:35b`/`RecursiveChunker`, HackerOne metadata-only stance, and the explicit list of things GaRAG does not attempt — lives in [`docs/design.md`](./docs/design.md).
 
 ## Stack
 
@@ -38,8 +38,8 @@ Full design rationale — NFR table with targets, choice of `bge-m3`/`qwen3.5:14
 - **Embedding:** `BAAI/bge-m3` (dense)
 - **Sparse:** `rank_bm25` (k1/b tuned per corpus)
 - **Reranker:** `BAAI/bge-reranker-v2-m3` cross-encoder
-- **LLM:** `qwen3.5:14b` via Ollama (`/api/chat`, `think=false`)
-- **LLM-as-judge:** `qwen3.5:35b` (separate model)
+- **LLM:** `qwen3.5:35b` via Ollama (`/api/chat`, `think=false`)
+- **LLM-as-judge:** `qwen3.5:35b` (same model — self-bias caveat noted for d13)
 - **API:** FastAPI + Pydantic structured output
 - **UI:** Gradio
 - **Orchestration:** Docker Compose (app + Qdrant + Prometheus + Grafana)
@@ -48,7 +48,7 @@ Full design rationale — NFR table with targets, choice of `bge-m3`/`qwen3.5:14
 
 ## Quickstart
 
-Prerequisites: Docker, Docker Compose, an existing `ollama` container on the host with `qwen3.5:14b` and `qwen3.5:35b` pulled.
+Prerequisites: Docker, Docker Compose, an existing `ollama` container on the host with `qwen3.5:35b` pulled.
 
 ```bash
 # 1. Install dependencies
