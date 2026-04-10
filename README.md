@@ -30,7 +30,7 @@ query
                                              QueryResponse {answer, citations[], confidence, used_chunks[]}
 ```
 
-Design rationale (NFR, embedding choice, chunking strategy, evaluation protocol) is documented in `docs/design.md`.
+Full design rationale — NFR table with targets, choice of `bge-m3`/`qwen3.5:14b`/`RecursiveChunker`, HackerOne metadata-only stance, and the explicit list of things GaRAG does not attempt — lives in [`docs/design.md`](./docs/design.md).
 
 ## Stack
 

@@ -1,11 +1,11 @@
-"""Invariants for the `Document` Pydantic contract."""
+"""Invariants for the `Document` and `Chunk` Pydantic contracts."""
 
 from __future__ import annotations
 
 import pytest
 from pydantic import ValidationError
 
-from app.schemas import Document
+from app.schemas import Chunk, Document
 
 
 def _doc(**overrides: object) -> Document:
@@ -81,3 +81,63 @@ def test_metadata_defaults_empty() -> None:
         text="Access control enforces policy...",
     )
     assert doc.metadata == {}
+
+
+# ---------- Chunk ----------
+
+
+def _chunk(**overrides: object) -> Chunk:
+    defaults: dict[str, object] = {
+        "chunk_id": "mitre_attack:T1059.001::0",
+        "doc_id": "mitre_attack:T1059.001",
+        "source": "mitre_attack",
+        "url": "https://attack.mitre.org/techniques/T1059/001/",
+        "title": "Command and Scripting Interpreter: PowerShell",
+        "text": "Adversaries may abuse PowerShell commands and scripts.",
+        "char_start": 0,
+        "char_end": 55,
+        "token_count": 10,
+    }
+    defaults.update(overrides)
+    return Chunk(**defaults)  # type: ignore[arg-type]
+
+
+def test_valid_chunk() -> None:
+    chunk = _chunk()
+    assert chunk.chunk_id == "mitre_attack:T1059.001::0"
+    assert chunk.token_count == 10
+
+
+def test_chunk_is_frozen() -> None:
+    chunk = _chunk()
+    with pytest.raises(ValidationError):
+        chunk.text = "mutated"  # type: ignore[misc]
+
+
+def test_chunk_id_must_start_with_doc_id() -> None:
+    with pytest.raises(ValidationError):
+        _chunk(chunk_id="mitre_attack:T9999::0")  # doc_id mismatch
+
+
+def test_chunk_id_prefix_must_match_source() -> None:
+    with pytest.raises(ValidationError):
+        _chunk(
+            chunk_id="owasp:A01::0",
+            doc_id="owasp:A01",
+            source="mitre_attack",
+        )
+
+
+def test_chunk_char_end_must_be_ge_char_start() -> None:
+    with pytest.raises(ValidationError):
+        _chunk(char_start=100, char_end=50)
+
+
+def test_chunk_token_count_must_be_positive() -> None:
+    with pytest.raises(ValidationError):
+        _chunk(token_count=0)
+
+
+def test_chunk_empty_text_rejected() -> None:
+    with pytest.raises(ValidationError):
+        _chunk(text="")
