@@ -44,6 +44,7 @@ dev = [
     "jupyter>=1.1",
     "matplotlib>=3.9",
     "seaborn>=0.13",
+    "pytest-cov>=7.1.0",
 ]
 security = [
     "garak>=0.10",
@@ -57,11 +58,43 @@ target-version = "py312"
 line-length = 100
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "B", "UP", "SIM", "ARG", "RUF"]
+select = ["ALL"]
+ignore = [
+    "D",      # pydocstyle — not enforcing docstring style in a learning project
+    "COM812", # missing trailing comma — conflicts with formatter
+    "ISC001", # single-line implicit string concat — conflicts with formatter
+    "ANN401", # Any in type annotations — used deliberately in metadata dicts
+    "FIX",    # TODO/FIXME markers are fine in an MVP
+    "TD",     # ditto
+    "T201",   # print() is fine in CLI fetch scripts
+    "S101",   # assert statements are fine in tests and notebooks
+    "PLR2004", # magic numbers are fine in experiments and scripts
+    "ERA001", # commented-out code detector — too noisy in scaffolding
+    "BLE001", # blind except in scripts is acceptable (logged)
+    "EM101", "EM102", # exception message formatting — noise for simple scripts
+    "TRY003", # long messages in exceptions — same
+    "G004",   # f-string in log messages — structlog handles it
+]
 
-[tool.ty]
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["D", "S", "PLR", "SLF001", "ANN", "ARG", "PLC0415"]
+"scripts/*" = ["INP001"]  # implicit namespace packages are fine
+
+[tool.ty.environment]
 python-version = "3.12"
+
+[tool.ty.terminal]
+error-on-warning = true
+
+[tool.ty.rules]
+possibly-unresolved-reference = "error"
+unused-ignore-comment = "warn"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+addopts = [
+    "--cov=app",
+    "--cov-report=term-missing",
+    "--cov-fail-under=60",
+]

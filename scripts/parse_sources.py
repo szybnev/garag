@@ -11,12 +11,15 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pandas as pd
 
-from app.schemas import Document
 from scripts.parsers import hackerone as h1
 from scripts.parsers import man_pages, mitre_atlas, mitre_attack, owasp
+
+if TYPE_CHECKING:
+    from app.schemas import Document
 
 OUT_FILE = Path(__file__).resolve().parents[1] / "data" / "raw" / "documents.parquet"
 

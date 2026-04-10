@@ -37,7 +37,7 @@ class Document(BaseModel):
     def _doc_id_prefix_matches_source(cls, v: str) -> str:
         return v
 
-    def model_post_init(self, __context: Any) -> None:
+    def model_post_init(self, _context: Any, /) -> None:
         prefix = self.doc_id.split(":", 1)[0]
         if prefix != self.source:
             raise ValueError(f"doc_id prefix {prefix!r} does not match source {self.source!r}")
