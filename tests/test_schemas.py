@@ -1,11 +1,11 @@
-"""Invariants for the `Document` and `Chunk` Pydantic contracts."""
+"""Invariants for the `Document`, `Chunk`, and public API Pydantic contracts."""
 
 from __future__ import annotations
 
 import pytest
 from pydantic import ValidationError
 
-from app.schemas import Chunk, Document
+from app.schemas import Chunk, Citation, Document, QueryRequest, QueryResponse
 
 
 def _doc(**overrides: object) -> Document:
@@ -141,3 +141,123 @@ def test_chunk_token_count_must_be_positive() -> None:
 def test_chunk_empty_text_rejected() -> None:
     with pytest.raises(ValidationError):
         _chunk(text="")
+
+
+# ---------- Citation ----------
+
+
+def test_citation_valid() -> None:
+    c = Citation(
+        chunk_id="owasp:A03_2021-Injection::6",
+        source="owasp",
+        url="https://owasp.org/Top10/A03_2021-Injection/",
+        quote="SQL injection occurs when untrusted input is passed to a SQL query.",
+    )
+    assert c.source == "owasp"
+    assert c.url is not None
+
+
+def test_citation_url_optional() -> None:
+    c = Citation(
+        chunk_id="man_pages:nmap::0", source="man_pages", quote="nmap -sU scans UDP ports."
+    )
+    assert c.url is None
+
+
+def test_citation_quote_max_length() -> None:
+    long_quote = "x" * 700
+    with pytest.raises(ValidationError):
+        Citation(chunk_id="x:y", source="owasp", quote=long_quote)
+
+
+def test_citation_empty_quote_rejected() -> None:
+    with pytest.raises(ValidationError):
+        Citation(chunk_id="x:y", source="owasp", quote="")
+
+
+def test_citation_is_frozen() -> None:
+    c = Citation(chunk_id="x:y", source="owasp", quote="something")
+    with pytest.raises(ValidationError):
+        c.quote = "mutated"  # type: ignore[misc]
+
+
+# ---------- QueryRequest ----------
+
+
+def test_query_request_minimum() -> None:
+    req = QueryRequest(query="What is T1059?")
+    assert req.top_k == 5
+
+
+def test_query_request_top_k_bounds() -> None:
+    QueryRequest(query="x" * 10, top_k=1)
+    QueryRequest(query="x" * 10, top_k=20)
+    with pytest.raises(ValidationError):
+        QueryRequest(query="x" * 10, top_k=0)
+    with pytest.raises(ValidationError):
+        QueryRequest(query="x" * 10, top_k=21)
+
+
+def test_query_request_query_length() -> None:
+    with pytest.raises(ValidationError):
+        QueryRequest(query="a")
+    with pytest.raises(ValidationError):
+        QueryRequest(query="x" * 2001)
+
+
+def test_query_request_extra_field_rejected() -> None:
+    with pytest.raises(ValidationError):
+        QueryRequest(query="What is T1059?", unknown="field")  # type: ignore[call-arg]
+
+
+# ---------- QueryResponse ----------
+
+
+def test_query_response_minimal() -> None:
+    resp = QueryResponse(
+        answer="T1059 is a MITRE ATT&CK technique for command-line interpreter abuse.",
+        confidence=0.92,
+    )
+    assert resp.citations == []
+    assert resp.used_chunks == []
+
+
+def test_query_response_with_citations() -> None:
+    cit = Citation(
+        chunk_id="mitre_attack:T1059::0",
+        source="mitre_attack",
+        url="https://attack.mitre.org/techniques/T1059/",
+        quote="Adversaries may abuse command-line interpreters.",
+    )
+    resp = QueryResponse(
+        answer="MITRE T1059 covers command interpreter abuse.",
+        citations=[cit],
+        confidence=0.88,
+        used_chunks=["mitre_attack:T1059::0"],
+    )
+    assert len(resp.citations) == 1
+    assert resp.used_chunks == ["mitre_attack:T1059::0"]
+
+
+def test_query_response_confidence_bounds() -> None:
+    QueryResponse(answer="ok", confidence=0.0)
+    QueryResponse(answer="ok", confidence=1.0)
+    with pytest.raises(ValidationError):
+        QueryResponse(answer="ok", confidence=1.1)
+    with pytest.raises(ValidationError):
+        QueryResponse(answer="ok", confidence=-0.1)
+
+
+def test_query_response_empty_answer_rejected() -> None:
+    with pytest.raises(ValidationError):
+        QueryResponse(answer="", confidence=0.5)
+
+
+def test_query_response_json_schema_is_serialisable() -> None:
+    """Sanity check that the schema can be passed to Ollama `format=...`."""
+    schema = QueryResponse.model_json_schema()
+    assert schema["type"] == "object"
+    assert "answer" in schema["properties"]
+    assert "citations" in schema["properties"]
+    assert "confidence" in schema["properties"]
+    assert "used_chunks" in schema["properties"]

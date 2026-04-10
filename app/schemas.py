@@ -74,3 +74,45 @@ class Chunk(BaseModel):
             raise ValueError(
                 f"char_end ({self.char_end}) must be >= char_start ({self.char_start})"
             )
+
+
+# ──────────────────────────────────────────────────────────────────────
+#  Public API contracts (used by FastAPI on d10 and the generator on d9)
+# ──────────────────────────────────────────────────────────────────────
+
+
+class Citation(BaseModel):
+    """A single citation surfaced alongside a generated answer."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    chunk_id: str = Field(min_length=3)
+    source: SourceName
+    url: str | None = None
+    quote: str = Field(min_length=1, max_length=600)
+
+
+class QueryRequest(BaseModel):
+    """Public POST `/query` payload."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    query: str = Field(min_length=2, max_length=2000)
+    top_k: int = Field(default=5, ge=1, le=20)
+
+
+class QueryResponse(BaseModel):
+    """Public POST `/query` response.
+
+    The structured-output schema fed to Ollama via `format=...` on d9.
+    `confidence` is the model's self-reported confidence in `[0, 1]`,
+    `used_chunks` is the ordered list of `chunk_id`s that the model
+    actually based the answer on (a subset of the retrieved candidates).
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    answer: str = Field(min_length=1)
+    citations: list[Citation] = Field(default_factory=list)
+    confidence: float = Field(ge=0.0, le=1.0)
+    used_chunks: list[str] = Field(default_factory=list)
