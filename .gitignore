@@ -1,0 +1,62 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.venv/
+.uv-cache/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# Env & secrets
+.env
+.env.local
+.env.*.local
+*.key
+*.pem
+
+# Data (большие/сырые/производные)
+data/raw/
+data/processed/
+data/index/
+data/qdrant_storage/
+data/hf_cache/
+evaluation/results/*.json
+evaluation/results/*.jsonl
+!evaluation/results/.gitkeep
+
+# Но коммитим: golden set, отчёты
+!data/golden/
+!data/golden/*.jsonl
+
+# Модели
+*.bin
+*.pt
+*.safetensors
+*.onnx
+*.gguf
+
+# Docker / runtime
+qdrant_storage/
+prom_data/
+grafana_data/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# Build
+dist/
+build/
+htmlcov/
+.coverage
+
+# garak reports (только summary.md коммитится)
+security/garak/reports/*.html
+security/garak/reports/*.jsonl
+security/garak/reports/*.log
+!security/garak/reports/summary.md

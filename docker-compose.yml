@@ -1,0 +1,78 @@
+services:
+  app:
+    build: .
+    image: garag:0.1.0
+    container_name: garag-app
+    environment:
+      QDRANT_URL: http://qdrant:6333
+      QDRANT_COLLECTION: garag_v1
+      OLLAMA_URL: http://host.docker.internal:11434
+      OLLAMA_MODEL: qwen3.5:14b
+      OLLAMA_JUDGE_MODEL: qwen3.5:35b
+      BGE_M3_MODEL: BAAI/bge-m3
+      RERANKER_MODEL: BAAI/bge-reranker-v2-m3
+      PROMETHEUS_ENABLED: "true"
+      LOG_LEVEL: INFO
+    ports:
+      - "8000:8000"
+      - "7860:7860"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      qdrant:
+        condition: service_healthy
+    volumes:
+      - ./data/index:/app/data/index:ro
+      - hf_cache:/root/.cache/huggingface
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: ["gpu"]
+
+  qdrant:
+    image: qdrant/qdrant:v1.16.0
+    container_name: garag-qdrant
+    ports:
+      - "6380:6333"
+      - "6381:6334"
+    volumes:
+      - ./data/qdrant_storage:/qdrant/storage
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c ':> /dev/tcp/127.0.0.1/6333' || exit 1"]
+      interval: 5s
+      retries: 20
+
+  prometheus:
+    image: prom/prometheus:v2.55.0
+    container_name: garag-prometheus
+    ports:
+      - "9091:9090"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prom_data:/prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+
+  grafana:
+    image: grafana/grafana:11.2.0
+    container_name: garag-grafana
+    ports:
+      - "3001:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    depends_on: [prometheus]
+
+volumes:
+  hf_cache:
+  prom_data:
+  grafana_data:
