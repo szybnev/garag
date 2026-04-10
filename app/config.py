@@ -49,9 +49,11 @@ class Settings(BaseSettings):
     retrieve_top_k: int = 20
     rerank_top_k: int = 5
 
-    # Generation
-    gen_temperature: float = 0.2
-    gen_top_p: float = 0.9
+    # Generation — tuned via `scripts/tune_gen_params.py` on 20 golden queries
+    # (36-config grid; winner = first fmt=1.0 config after rejecting num_predict=400
+    #  due to tool_usage truncation; see docs/design.md §4.x for the full table)
+    gen_temperature: float = 0.4
+    gen_top_p: float = 1.0
     gen_num_predict: int = 800
     gen_seed: int = 42
 
