@@ -85,7 +85,7 @@ def main() -> None:
     df = pd.read_parquet(args.input)
     print(f"[load] {len(df)} chunks from {args.input}")
 
-    client = QdrantClient(url=args.qdrant_url, timeout=60.0)
+    client = QdrantClient(url=args.qdrant_url, timeout=60)
     _create_collection(client, args.collection, recreate=args.recreate)
 
     embedder = DenseEmbedder()
