@@ -80,6 +80,9 @@ ignore = [
 "tests/*" = ["D", "S", "PLR", "SLF001", "ANN", "ARG", "PLC0415"]
 "scripts/*" = ["INP001"]  # implicit namespace packages are fine
 
+[tool.ruff.lint.pylint]
+max-args = 7
+
 [tool.ty.environment]
 python-version = "3.12"
 

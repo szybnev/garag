@@ -21,17 +21,19 @@ from app.rag.retriever_sparse import SparseRetriever
 
 if TYPE_CHECKING:
     from app.rag import ScoredChunk
+    from app.rag.reranker import Reranker
 
 FusionMethod = Literal["rrf", "alpha"]
 
 
 class HybridRetriever:
-    """Orchestrates dense + sparse retrieval and score fusion."""
+    """Orchestrates dense + sparse retrieval, score fusion, and optional reranking."""
 
     def __init__(
         self,
         dense: DenseRetriever | None = None,
         sparse: SparseRetriever | None = None,
+        reranker: Reranker | None = None,
         *,
         fusion: FusionMethod = "rrf",
         alpha: float = 0.5,
@@ -39,6 +41,7 @@ class HybridRetriever:
     ) -> None:
         self.dense = dense or DenseRetriever()
         self.sparse = sparse or SparseRetriever()
+        self.reranker = reranker
         self.fusion = fusion
         self.alpha = alpha
         self.rrf_k = rrf_k
@@ -54,5 +57,12 @@ class HybridRetriever:
         sparse_hits = self.sparse.search(query, top_k=candidate_k)
 
         if self.fusion == "rrf":
-            return reciprocal_rank_fusion(dense_hits, sparse_hits, k=self.rrf_k, top_k=top_k)
-        return alpha_weighted_fusion(dense_hits, sparse_hits, alpha=self.alpha, top_k=top_k)
+            fused = reciprocal_rank_fusion(dense_hits, sparse_hits, k=self.rrf_k, top_k=candidate_k)
+        else:
+            fused = alpha_weighted_fusion(
+                dense_hits, sparse_hits, alpha=self.alpha, top_k=candidate_k
+            )
+
+        if self.reranker is not None:
+            return self.reranker.rerank(query, fused, top_k=top_k)
+        return fused[:top_k]

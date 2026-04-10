@@ -18,6 +18,7 @@ from typing import Any
 import pytrec_eval
 
 from app.rag.fusion import alpha_weighted_fusion, reciprocal_rank_fusion
+from app.rag.reranker import Reranker
 from app.rag.retriever_dense import DenseRetriever
 from app.rag.retriever_sparse import SparseRetriever
 
@@ -86,20 +87,20 @@ def _run_all_retrievers(
     golden: list[dict[str, Any]],
     dense: DenseRetriever,
     sparse: SparseRetriever,
+    reranker: Reranker | None,
+    *,
     candidate_k: int,
     alpha: float,
-) -> tuple[
-    dict[str, dict[str, float]],
-    dict[str, dict[str, float]],
-    dict[str, dict[str, float]],
-    dict[str, dict[str, float]],
-    dict[str, float],
-]:
-    dense_runs: dict[str, dict[str, float]] = {}
-    sparse_runs: dict[str, dict[str, float]] = {}
-    rrf_runs: dict[str, dict[str, float]] = {}
-    alpha_runs: dict[str, dict[str, float]] = {}
-    times = {"dense": 0.0, "sparse": 0.0, "rrf": 0.0, "alpha": 0.0}
+) -> tuple[dict[str, dict[str, dict[str, float]]], dict[str, float]]:
+    runs: dict[str, dict[str, dict[str, float]]] = {
+        "dense": {},
+        "sparse": {},
+        "rrf": {},
+        "alpha": {},
+    }
+    if reranker is not None:
+        runs["rerank"] = {}
+    times = {"dense": 0.0, "sparse": 0.0, "rrf": 0.0, "alpha": 0.0, "rerank": 0.0}
 
     for item in golden:
         q = item["question"]
@@ -108,24 +109,39 @@ def _run_all_retrievers(
         t0 = time.perf_counter()
         d_hits = dense.search(q, top_k=candidate_k)
         times["dense"] += time.perf_counter() - t0
-        dense_runs[qid] = _run_to_dict(d_hits)
+        runs["dense"][qid] = _run_to_dict(d_hits)
 
         t0 = time.perf_counter()
         s_hits = sparse.search(q, top_k=candidate_k)
         times["sparse"] += time.perf_counter() - t0
-        sparse_runs[qid] = _run_to_dict(s_hits)
+        runs["sparse"][qid] = _run_to_dict(s_hits)
 
         t0 = time.perf_counter()
         rrf_hits = reciprocal_rank_fusion(d_hits, s_hits, top_k=candidate_k)
         times["rrf"] += time.perf_counter() - t0
-        rrf_runs[qid] = _run_to_dict(rrf_hits)
+        runs["rrf"][qid] = _run_to_dict(rrf_hits)
 
         t0 = time.perf_counter()
         alpha_hits = alpha_weighted_fusion(d_hits, s_hits, alpha=alpha, top_k=candidate_k)
         times["alpha"] += time.perf_counter() - t0
-        alpha_runs[qid] = _run_to_dict(alpha_hits)
+        runs["alpha"][qid] = _run_to_dict(alpha_hits)
 
-    return dense_runs, sparse_runs, rrf_runs, alpha_runs, times
+        if reranker is not None:
+            t0 = time.perf_counter()
+            reranked = reranker.rerank(q, alpha_hits, top_k=candidate_k)
+            times["rerank"] += time.perf_counter() - t0
+            runs["rerank"][qid] = _run_to_dict(reranked)
+
+    return runs, times
+
+
+_RUN_LABELS = {
+    "dense": "dense",
+    "sparse": "sparse",
+    "rrf": "hybrid RRF",
+    "alpha": "hybrid alpha",
+    "rerank": "hybrid + reranker",
+}
 
 
 def _write_per_category(
@@ -133,7 +149,6 @@ def _write_per_category(
     golden: list[dict[str, Any]],
     qrels: dict[str, dict[str, int]],
     runs: dict[str, dict[str, dict[str, float]]],
-    alpha: float,
 ) -> None:
     fh.write("\n\n## Per-category breakdown\n\n")
     for category in ("factual", "tool_usage", "multi_hop"):
@@ -142,15 +157,9 @@ def _write_per_category(
             continue
         cat_qrels = {q: qrels[q] for q in cat_qids}
         cat_summaries = [
-            _summarise("dense", cat_qrels, {q: runs["dense"][q] for q in cat_qids}, 0.0),
-            _summarise("sparse", cat_qrels, {q: runs["sparse"][q] for q in cat_qids}, 0.0),
-            _summarise("hybrid RRF", cat_qrels, {q: runs["rrf"][q] for q in cat_qids}, 0.0),
-            _summarise(
-                f"hybrid alpha={alpha}",
-                cat_qrels,
-                {q: runs["alpha"][q] for q in cat_qids},
-                0.0,
-            ),
+            _summarise(_RUN_LABELS[name], cat_qrels, {q: runs[name][q] for q in cat_qids}, 0.0)
+            for name in ("dense", "sparse", "rrf", "alpha", "rerank")
+            if name in runs
         ]
         fh.write(f"### {category} ({len(cat_qids)} queries)\n\n")
         fh.write(_format_table(cat_summaries))
@@ -163,6 +172,9 @@ def main() -> None:
     ap.add_argument("--candidate-k", type=int, default=20)
     ap.add_argument("--alpha", type=float, default=0.5)
     ap.add_argument("--report", type=Path, default=REPORT_FILE)
+    ap.add_argument(
+        "--rerank", action="store_true", help="add bge-reranker-v2-m3 cross-encoder pass"
+    )
     args = ap.parse_args()
 
     golden = _load_golden(args.golden)
@@ -172,24 +184,45 @@ def main() -> None:
     print("[init] dense + sparse retrievers")
     dense = DenseRetriever()
     sparse = SparseRetriever()
+    reranker: Reranker | None = None
+    if args.rerank:
+        print("[init] cross-encoder reranker (bge-reranker-v2-m3)")
+        reranker = Reranker()
 
-    dense_runs, sparse_runs, rrf_runs, alpha_runs, times = _run_all_retrievers(
-        golden, dense, sparse, args.candidate_k, args.alpha
+    runs, times = _run_all_retrievers(
+        golden,
+        dense,
+        sparse,
+        reranker,
+        candidate_k=args.candidate_k,
+        alpha=args.alpha,
     )
 
     summaries = [
-        _summarise("dense (bge-m3)", qrels, dense_runs, times["dense"]),
-        _summarise("sparse (BM25)", qrels, sparse_runs, times["sparse"]),
+        _summarise("dense (bge-m3)", qrels, runs["dense"], times["dense"]),
+        _summarise("sparse (BM25)", qrels, runs["sparse"], times["sparse"]),
         _summarise(
-            "hybrid RRF (k=60)", qrels, rrf_runs, times["dense"] + times["sparse"] + times["rrf"]
+            "hybrid RRF (k=60)",
+            qrels,
+            runs["rrf"],
+            times["dense"] + times["sparse"] + times["rrf"],
         ),
         _summarise(
             f"hybrid alpha={args.alpha}",
             qrels,
-            alpha_runs,
+            runs["alpha"],
             times["dense"] + times["sparse"] + times["alpha"],
         ),
     ]
+    if "rerank" in runs:
+        summaries.append(
+            _summarise(
+                "hybrid + reranker",
+                qrels,
+                runs["rerank"],
+                times["dense"] + times["sparse"] + times["alpha"] + times["rerank"],
+            )
+        )
 
     table = _format_table(summaries)
     print()
@@ -203,14 +236,13 @@ def main() -> None:
             f"Hybrid alpha-weighted uses `alpha={args.alpha}`. "
             "Metrics computed via `pytrec_eval`.\n\n"
         )
+        if reranker is not None:
+            fh.write(
+                "**Reranker:** `BAAI/bge-reranker-v2-m3` cross-encoder applied "
+                f"on top of `hybrid alpha={args.alpha}` candidates.\n\n"
+            )
         fh.write(table)
-        _write_per_category(
-            fh,
-            golden,
-            qrels,
-            {"dense": dense_runs, "sparse": sparse_runs, "rrf": rrf_runs, "alpha": alpha_runs},
-            args.alpha,
-        )
+        _write_per_category(fh, golden, qrels, runs)
     print(f"\n[done] wrote {args.report}")
 
 
