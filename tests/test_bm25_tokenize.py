@@ -1,0 +1,52 @@
+"""Invariants for the BM25 tokenizer in `scripts.build_bm25`."""
+
+from __future__ import annotations
+
+from scripts.build_bm25 import tokenize
+
+STOP = {"the", "a", "an", "is", "and", "of", "in", "for", "to"}
+
+
+def test_lowercases_input() -> None:
+    assert tokenize("MITRE ATT&CK", STOP) == ["mitre", "att", "ck"]
+
+
+def test_strips_urls() -> None:
+    text = "see https://attack.mitre.org/techniques/T1059/ for details"
+    tokens = tokenize(text, STOP)
+    assert "attack" not in tokens or "mitre" not in tokens or "techniques" not in tokens
+    assert "see" in tokens
+    assert "details" in tokens
+
+
+def test_drops_stopwords() -> None:
+    tokens = tokenize("the impact of the vulnerability is critical", STOP)
+    assert "the" not in tokens
+    assert "of" not in tokens
+    assert "is" not in tokens
+    assert "impact" in tokens
+    assert "vulnerability" in tokens
+    assert "critical" in tokens
+
+
+def test_keeps_alphanumeric_words() -> None:
+    tokens = tokenize("CVE-2023-1234 affects bge-m3 v1", STOP)
+    assert "cve-2023-1234" in tokens
+    assert "bge-m3" in tokens
+
+
+def test_empty_input() -> None:
+    assert tokenize("", STOP) == []
+
+
+def test_only_punctuation() -> None:
+    assert tokenize(",.;:!?", STOP) == []
+
+
+def test_short_single_letter_dropped() -> None:
+    # _WORD_RE requires at least 2 characters total ([a-z][a-z0-9_-]{1,})
+    tokens = tokenize("a b c d hello world", STOP)
+    assert "a" not in tokens
+    assert "b" not in tokens
+    assert "hello" in tokens
+    assert "world" in tokens
