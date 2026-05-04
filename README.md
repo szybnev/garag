@@ -4,15 +4,15 @@
 
 MVP for the **GigaSchool LLM-Engineer** final project (track A).
 
-> **Disclaimer.** GaRAG is an **academic project** built as the final assignment for the GigaSchool LLM-Engineer course. It is **not production-ready** and makes no claim of being so. Do not use it in real security operations, do not rely on its output for incident response or vulnerability assessment, and treat every generated answer as educational material that must be independently verified against the cited primary sources. Security scanning (`garak`) and guardrails (LLM Guard) are included as learning exercises, not as hardened defence in depth.
+> **Disclaimer.** GaRAG is an **academic project** built as the final assignment for the GigaSchool LLM-Engineer course. It is **not production-ready** and makes no claim of being so. Do not use it in real security operations, do not rely on its output for incident response or vulnerability assessment, and treat every generated answer as educational material that must be independently verified against the cited primary sources. Security scanning (`garak`) and Granite Guardian guardrails are included as learning exercises, not as hardened defence in depth.
 
 ## Status
 
 Runtime MVP is implemented: hybrid retrieval, reranking, generation, FastAPI,
 Gradio mounted under FastAPI, Prometheus metrics, Docker Compose wiring, and
 evaluation/NFR benchmark scripts. The current local corpus has 2,544 documents,
-3,900 chunks, and 3,900 Qdrant points. Security guardrails and the garak runner
-are planned work.
+3,900 chunks, and 3,900 Qdrant points. Security guardrails and a focused garak
+runner are wired for local hardening checks.
 
 Target release: **v0.1.0-garag** — 2026-04-24.
 
@@ -48,7 +48,7 @@ Full design rationale — NFR table with targets, choice of local models/`Recurs
 - **API:** FastAPI + Pydantic structured output (`/health`, `/query`, `/metrics`)
 - **UI:** Gradio mounted at `/gradio`
 - **Orchestration:** Docker Compose (app + Qdrant + Prometheus + Grafana)
-- **Security:** `garak` probes + LLM Guard guardrails are planned
+- **Security:** Granite Guardian guardrails + focused `garak` probes
 - **Python:** 3.12, uv + ruff + ty
 
 ## Generator model comparison
@@ -170,8 +170,20 @@ BM25 identifier indexing:
 
 ## Security testing
 
-`garak` probes and LLM Guard input/output guardrails are planned for the next
-hardening pass. The current runtime MVP does not ship a runnable garak script.
+`/query` runs input and output guardrails when `GUARDRAILS_ENABLED=true`.
+The guardrail model is `granite-guardian-3.2-5b`, served through the same
+LM Studio OpenAI-compatible API style as the generator. Unsafe user input is
+rejected before retrieval/generation with HTTP 400; unsafe generated output or
+guardrail backend failures are surfaced as HTTP 502.
+
+Run a focused local red-team scan against a running FastAPI app:
+
+```bash
+make garak GARAG_API_URL=http://localhost:8000
+```
+
+The runner targets `POST /query`, extracts `answer` from the JSON response, and
+writes garak reports under `security/garak/reports/` by default.
 
 ## Data disclaimer
 
@@ -201,7 +213,7 @@ are still not indexed in the MVP.
 - GraphRAG, Agentic RAG
 - Fine-tuning (QLoRA / DPO)
 - Extended golden set (100–150 pairs)
-- `garak` runner and LLM Guard hooks
+- Production-grade security hardening beyond the academic guardrail/garak checks
 
 These are tracked as out-of-scope roadmap items in [`docs/roadmap.md`](./docs/roadmap.md).
 

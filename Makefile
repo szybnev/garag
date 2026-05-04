@@ -1,5 +1,8 @@
 .PHONY: help sync lint format typecheck test up down logs ingest eval garak clean
 
+GARAG_API_URL ?= http://localhost:8000
+GARAK_REPORT_PREFIX ?= security/garak/reports/garag
+
 help:
 	@echo "Targets:"
 	@echo "  sync       - uv sync (install deps)"
@@ -12,7 +15,7 @@ help:
 	@echo "  logs       - docker compose logs -f app"
 	@echo "  ingest     - fetch + parse + chunk + build indices"
 	@echo "  eval       - run retrieval + generation evaluation"
-	@echo "  garak      - planned security scan placeholder"
+	@echo "  garak      - run focused garak scan against /query"
 	@echo "  clean      - remove caches and build artefacts"
 
 sync:
@@ -55,7 +58,9 @@ eval:
 	uv run python -m scripts.eval_generation --golden data/golden/golden_set_v1.jsonl
 
 garak:
-	@echo "garak runner is planned but not implemented in GaRAG runtime MVP"
+	uv run --group security python -m scripts.run_garak \
+		--api-url "$(GARAG_API_URL)" \
+		--report-prefix "$(GARAK_REPORT_PREFIX)"
 
 clean:
 	rm -rf .pytest_cache .ruff_cache .mypy_cache **/__pycache__ dist build htmlcov .coverage

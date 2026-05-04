@@ -18,6 +18,7 @@ import time
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from app.guardrails import GuardrailClient
     from app.rag.generator import Generator
     from app.rag.pipeline import HybridRetriever
     from app.schemas import QueryResponse
@@ -31,11 +32,13 @@ class QueryPipeline:
         retriever: HybridRetriever,
         generator: Generator,
         *,
+        guardrails: GuardrailClient | None = None,
         candidate_k: int = 20,
         top_k: int = 12,
     ) -> None:
         self.retriever = retriever
         self.generator = generator
+        self.guardrails = guardrails
         self.candidate_k = candidate_k
         self.top_k = top_k
 
@@ -48,8 +51,9 @@ class QueryPipeline:
     ) -> QueryResponse:
         """Run retrieval + generation and populate `latency_ms`.
 
-        Keys written to `latency_ms`: `dense`, `sparse`, `fusion`,
-        `rerank` (only if the retriever has a reranker), `gen`, `total`.
+        Keys written to `latency_ms`: `guardrails_in` (when enabled),
+        `dense`, `sparse`, `fusion`, `rerank` (only if the retriever has
+        a reranker), `gen`, `guardrails_out` (when enabled), `total`.
         Values are milliseconds rounded to 1 decimal.
         """
         ck = candidate_k if candidate_k is not None else self.candidate_k
@@ -57,11 +61,23 @@ class QueryPipeline:
 
         timings: dict[str, float] = {}
         t_total = time.perf_counter()
+
+        if self.guardrails is not None:
+            t_guardrails = time.perf_counter()
+            self.guardrails.scan_input(question)
+            timings["guardrails_in"] = time.perf_counter() - t_guardrails
+
         chunks = self.retriever.retrieve(question, candidate_k=ck, top_k=tk, timings=timings)
 
         t_gen = time.perf_counter()
         response = self.generator.generate(question, chunks)
         timings["gen"] = time.perf_counter() - t_gen
+
+        if self.guardrails is not None:
+            t_guardrails = time.perf_counter()
+            self.guardrails.scan_output(question=question, chunks=chunks, response=response)
+            timings["guardrails_out"] = time.perf_counter() - t_guardrails
+
         timings["total"] = time.perf_counter() - t_total
 
         latency_ms = {key: round(value * 1000, 1) for key, value in timings.items()}

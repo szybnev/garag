@@ -20,6 +20,12 @@ from prometheus_client import (
 )
 
 from app.config import settings
+from app.guardrails import (
+    GraniteGuardianGuardrails,
+    GuardrailError,
+    GuardrailInputViolation,
+    GuardrailOutputViolation,
+)
 from app.rag.generator import GenerationError, Generator
 from app.rag.pipeline import HybridRetriever
 from app.rag.query_pipeline import QueryPipeline
@@ -47,15 +53,17 @@ def build_pipeline() -> QueryPipeline:
         rrf_k=settings.rrf_k,
     )
     generator = Generator()
+    guardrails = GraniteGuardianGuardrails() if settings.guardrails_enabled else None
     return QueryPipeline(
         retriever=retriever,
         generator=generator,
+        guardrails=guardrails,
         candidate_k=settings.retrieve_top_k,
         top_k=settings.rerank_top_k,
     )
 
 
-def create_app(
+def create_app(  # noqa: C901 - one FastAPI factory keeps test injection straightforward.
     *,
     pipeline_factory: PipelineFactory | None = None,
     mount_gradio: bool = True,
@@ -113,6 +121,21 @@ def create_app(
                 candidate_k=settings.retrieve_top_k,
                 top_k=payload.top_k,
             )
+        except GuardrailInputViolation as exc:
+            query_requests.labels(status="error").inc()
+            query_errors.labels(error_type="guardrail_input").inc()
+            query_latency.labels(status="error").observe(time.perf_counter() - started)
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except GuardrailOutputViolation as exc:
+            query_requests.labels(status="error").inc()
+            query_errors.labels(error_type="guardrail_output").inc()
+            query_latency.labels(status="error").observe(time.perf_counter() - started)
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+        except GuardrailError as exc:
+            query_requests.labels(status="error").inc()
+            query_errors.labels(error_type="guardrail").inc()
+            query_latency.labels(status="error").observe(time.perf_counter() - started)
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
         except GenerationError as exc:
             query_requests.labels(status="error").inc()
             query_errors.labels(error_type="generation").inc()

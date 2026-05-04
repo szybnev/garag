@@ -38,7 +38,7 @@ required for that score lives in this roadmap.
 
 ### Increment 4 — Production Hardening
 
-- LLM Guard input/output guardrails wired into `/query`
+- Production-grade guardrail policies beyond the current Granite Guardian checks
 - Full `garak` probe set + custom cybersec-specific jailbreak probes
 - Extended NFR benchmark sweeps for latency, throughput, and indexing time
 - Adversarial golden set with known prompt-injection payloads

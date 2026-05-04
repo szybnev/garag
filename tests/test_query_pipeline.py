@@ -14,6 +14,7 @@ from typing import Any
 import httpx
 import pytest
 
+from app.guardrails import GuardrailInputViolation, GuardrailOutputViolation
 from app.rag import ScoredChunk
 from app.rag.generator import GenerationError, Generator
 from app.rag.pipeline import HybridRetriever
@@ -42,6 +43,35 @@ class _StubReranker:
     ) -> list[ScoredChunk]:
         del query
         return list(candidates)[:top_k]
+
+
+class _StubGuardrails:
+    def __init__(
+        self,
+        *,
+        input_error: Exception | None = None,
+        output_error: Exception | None = None,
+    ) -> None:
+        self.input_error = input_error
+        self.output_error = output_error
+        self.input_calls: list[str] = []
+        self.output_calls: list[dict[str, Any]] = []
+
+    def scan_input(self, question: str) -> None:
+        self.input_calls.append(question)
+        if self.input_error is not None:
+            raise self.input_error
+
+    def scan_output(
+        self,
+        *,
+        question: str,
+        chunks: list[ScoredChunk],
+        response: QueryResponse,
+    ) -> None:
+        self.output_calls.append({"question": question, "chunks": chunks, "response": response})
+        if self.output_error is not None:
+            raise self.output_error
 
 
 def _chunk(cid: str) -> ScoredChunk:
@@ -117,6 +147,70 @@ def test_query_pipeline_latency_keys_include_total_and_gen() -> None:
     for value in response.latency_ms.values():
         assert isinstance(value, float)
         assert value >= 0.0
+
+
+def test_query_pipeline_runs_guardrails_and_records_latency() -> None:
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"message": {"content": _valid_response_json()}})
+
+    guardrails = _StubGuardrails()
+    pipeline = QueryPipeline(
+        retriever=_make_retriever(with_reranker=True),
+        generator=_make_generator(httpx.MockTransport(handler)),
+        guardrails=guardrails,
+    )
+
+    response = pipeline.query("example question")
+
+    assert guardrails.input_calls == ["example question"]
+    assert len(guardrails.output_calls) == 1
+    assert response.latency_ms is not None
+    assert "guardrails_in" in response.latency_ms
+    assert "guardrails_out" in response.latency_ms
+
+
+def test_query_pipeline_input_guardrail_blocks_before_retrieval() -> None:
+    dense = _StubRetriever([_chunk("mitre_attack:T0::0")])
+    sparse = _StubRetriever([_chunk("mitre_attack:T0::0")])
+    retriever = HybridRetriever(
+        dense=dense,  # type: ignore[arg-type]
+        sparse=sparse,  # type: ignore[arg-type]
+        fusion="rrf",
+    )
+    guardrails = _StubGuardrails(
+        input_error=GuardrailInputViolation(stage="input", risk_name="harm", raw="Yes")
+    )
+
+    pipeline = QueryPipeline(
+        retriever=retriever,
+        generator=_make_generator(httpx.MockTransport(lambda _request: httpx.Response(500))),
+        guardrails=guardrails,
+    )
+
+    with pytest.raises(GuardrailInputViolation):
+        pipeline.query("unsafe")
+
+    assert dense.last_query is None
+    assert sparse.last_query is None
+
+
+def test_query_pipeline_output_guardrail_runs_after_generation() -> None:
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"message": {"content": _valid_response_json()}})
+
+    guardrails = _StubGuardrails(
+        output_error=GuardrailOutputViolation(stage="output", risk_name="groundedness", raw="Yes")
+    )
+    pipeline = QueryPipeline(
+        retriever=_make_retriever(with_reranker=True),
+        generator=_make_generator(httpx.MockTransport(handler)),
+        guardrails=guardrails,
+    )
+
+    with pytest.raises(GuardrailOutputViolation):
+        pipeline.query("example question")
+
+    assert len(guardrails.output_calls) == 1
 
 
 def test_query_pipeline_without_reranker_omits_rerank_key() -> None:
