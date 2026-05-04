@@ -169,14 +169,35 @@ def _hydrate_response(
                 quote=cit.quote[:600],
             )
         )
+    if not hydrated and generated.answer.strip() and chunks:
+        fallback_ids = [cid for cid in generated.used_chunks if cid in by_id]
+        fallback_chunks = [by_id[cid] for cid in fallback_ids] or chunks[:1]
+        hydrated.extend(
+            Citation(
+                chunk_id=chunk.chunk_id,
+                source=cast("SourceName", chunk.source),
+                url=chunk.url,
+                quote=_fallback_quote(chunk.text),
+            )
+            for chunk in fallback_chunks[:3]
+        )
     valid_ids = {c.chunk_id for c in hydrated}
     used = [cid for cid in generated.used_chunks if cid in valid_ids]
+    if not used:
+        used = [c.chunk_id for c in hydrated]
     return QueryResponse(
         answer=generated.answer,
         citations=hydrated,
         confidence=generated.confidence,
         used_chunks=used,
     )
+
+
+def _fallback_quote(text: str) -> str:
+    quote = " ".join(text.strip().split())
+    if len(quote) > 280:
+        quote = quote[:277].rstrip() + "..."
+    return quote or "Retrieved source chunk."
 
 
 class GenerationError(RuntimeError):

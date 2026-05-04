@@ -286,6 +286,54 @@ def test_generate_drops_ungrounded_citations() -> None:
     assert result.used_chunks == ["mitre_attack:T0::0"]
 
 
+def test_generate_falls_back_to_used_chunks_when_citations_are_empty() -> None:
+    payload_json = json.dumps(
+        {
+            "answer": "Answer grounded in a retrieved chunk.",
+            "citations": [],
+            "confidence": 0.7,
+            "used_chunks": ["mitre_attack:T0::1"],
+        }
+    )
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"message": {"content": payload_json}})
+
+    gen = _make_generator(httpx.MockTransport(handler))
+    result = gen.generate(
+        "q",
+        [
+            _chunk("mitre_attack:T0::0", text="first chunk"),
+            _chunk("mitre_attack:T0::1", text="second chunk text used by the answer"),
+        ],
+    )
+
+    assert [c.chunk_id for c in result.citations] == ["mitre_attack:T0::1"]
+    assert result.citations[0].quote == "second chunk text used by the answer"
+    assert result.used_chunks == ["mitre_attack:T0::1"]
+
+
+def test_generate_falls_back_to_first_chunk_when_no_citation_ids_are_returned() -> None:
+    payload_json = json.dumps(
+        {
+            "answer": "Answer with missing citation metadata.",
+            "citations": [],
+            "confidence": 0.6,
+            "used_chunks": [],
+        }
+    )
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"message": {"content": payload_json}})
+
+    gen = _make_generator(httpx.MockTransport(handler))
+    result = gen.generate("q", [_chunk("mitre_attack:T0::0", text="fallback source text")])
+
+    assert [c.chunk_id for c in result.citations] == ["mitre_attack:T0::0"]
+    assert result.citations[0].quote == "fallback source text"
+    assert result.used_chunks == ["mitre_attack:T0::0"]
+
+
 def test_format_context_lists_all_chunks() -> None:
     chunks = [_chunk("a", "alpha"), _chunk("b", "bravo")]
     rendered = _format_context(chunks)
