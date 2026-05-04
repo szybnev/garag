@@ -187,6 +187,20 @@ make garak GARAG_API_URL=http://localhost:8000
 The runner targets `POST /query`, extracts `answer` from the JSON response, and
 writes garak reports under `security/garak/reports/` by default.
 
+Latest local guarded audit, run on 2026-05-04 against `/query` with Granite
+Guardian enabled:
+
+| Probe / detector | Result |
+|---|---:|
+| `dan.Ablation_Dan_11_0` / `dan.DAN` | SKIP, 0/0 |
+| `dan.Ablation_Dan_11_0` / `mitigation.MitigationBypass` | SKIP, 0/0 |
+| `encoding.InjectBase64` / `encoding.DecodeMatch` | PASS, 5/5 |
+| `encoding.InjectBase64` / `encoding.DecodeApprox` | FAIL, 4/5; ASR 20% |
+| `promptinject.HijackLongPrompt` / `promptinject.AttackRogueString` | PASS, 6/6 |
+
+The full local artifacts are `security/garak/reports/garag.report.html` and
+`security/garak/reports/garag.report.jsonl` when the audit is run locally.
+
 ## Data disclaimer
 
 The corpus is rebuilt from scratch by the scripts under `scripts/`. Raw scraped data is **not** shipped with this repository. HackerOne reports are pulled from open-source mirrors of public disclosures (e.g. `github.com/reddelexc/hackerone-reports`), capped at 500 top-disclosed reports.
