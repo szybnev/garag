@@ -12,30 +12,18 @@ from app.symphony.models import (
     AgentEvent,
     BlockerRef,
     Issue,
-    TrackerConfig,
     WorkflowDefinition,
     Workspace,
     utc_now,
 )
 from app.symphony.orchestrator import SymphonyOrchestrator, sort_for_dispatch
-from app.symphony.tracker import LinearIssueTracker
 
 if TYPE_CHECKING:
     from pathlib import Path
 
 
-class FakeTracker(LinearIssueTracker):
+class FakeTracker:
     def __init__(self, candidates: list[Issue]) -> None:
-        super().__init__(
-            TrackerConfig(
-                kind="linear",
-                endpoint="https://linear.test/graphql",
-                api_key="token",
-                project_slug="sec",
-                active_states=("Todo", "In Progress"),
-                terminal_states=("Done", "Canceled"),
-            )
-        )
         self.candidates = candidates
         self.states: dict[str, Issue] = {issue.id: issue for issue in candidates}
         self.terminal: list[Issue] = []
@@ -70,9 +58,13 @@ def _workflow(tmp_path: Path) -> WorkflowDefinition:
     path.write_text(
         """---
 tracker:
-  kind: linear
-  api_key: token
-  project_slug: sec
+  kind: bd
+  active_states:
+    - Todo
+    - In Progress
+  terminal_states:
+    - Done
+    - Canceled
 polling:
   interval_ms: 1000
 workspace:
@@ -90,7 +82,11 @@ Work on {{ issue.identifier }}.
     return WorkflowDefinition(
         path=path,
         config={
-            "tracker": {"kind": "linear", "api_key": "token", "project_slug": "sec"},
+            "tracker": {
+                "kind": "bd",
+                "active_states": ["Todo", "In Progress"],
+                "terminal_states": ["Done", "Canceled"],
+            },
             "polling": {"interval_ms": 1000},
             "workspace": {"root": "ws"},
             "agent": {"max_concurrent_agents": 1, "max_retry_backoff_ms": 20_000},

@@ -17,7 +17,7 @@ from app.symphony.workflow import WorkflowDefinition, load_workflow
 from app.symphony.workspace import WorkspaceManager
 
 if TYPE_CHECKING:
-    from app.symphony.tracker import LinearIssueTracker
+    from app.symphony.tracker import IssueTracker
 
 LOGGER = logging.getLogger(__name__)
 CONTINUATION_RETRY_MS = 1_000
@@ -32,7 +32,7 @@ class SymphonyOrchestrator:
     def __init__(
         self,
         workflow: WorkflowDefinition,
-        tracker: LinearIssueTracker,
+        tracker: IssueTracker,
         runner_factory: RunnerFactory | None = None,
     ) -> None:
         self.workflow = workflow
@@ -85,7 +85,7 @@ class SymphonyOrchestrator:
         try:
             validate_dispatch_config(self.config)
         except ConfigError as exc:
-            LOGGER.exception(
+            LOGGER.warning(
                 "dispatch_validation failed code=%s reason=%s",
                 exc.code,
                 exc.message,
@@ -95,7 +95,7 @@ class SymphonyOrchestrator:
         try:
             issues = await asyncio.to_thread(self.tracker.fetch_candidate_issues)
         except SymphonyError as exc:
-            LOGGER.exception("candidate_fetch failed code=%s reason=%s", exc.code, exc.message)
+            LOGGER.warning("candidate_fetch failed code=%s reason=%s", exc.code, exc.message)
             return
 
         async with self._lock:
@@ -131,8 +131,8 @@ class SymphonyOrchestrator:
     async def _reload_if_changed(self) -> None:
         try:
             mtime_ns = self.workflow.path.stat().st_mtime_ns
-        except OSError:
-            LOGGER.exception("workflow_reload failed code=missing_workflow_file")
+        except OSError as exc:
+            LOGGER.warning("workflow_reload failed code=missing_workflow_file reason=%s", exc)
             return
         if mtime_ns == self.workflow.mtime_ns:
             return
@@ -140,7 +140,7 @@ class SymphonyOrchestrator:
             workflow = load_workflow(self.workflow.path)
             config = load_service_config(workflow)
         except (ConfigError, WorkflowError) as exc:
-            LOGGER.exception("workflow_reload failed code=%s reason=%s", exc.code, exc.message)
+            LOGGER.warning("workflow_reload failed code=%s reason=%s", exc.code, exc.message)
             return
         self.workflow = workflow
         self.config = config

@@ -72,6 +72,34 @@ def test_default_workflow_path_uses_cwd(tmp_path: Path) -> None:
     assert workflow.prompt_template == "Prompt"
 
 
+def test_bd_tracker_is_default_and_does_not_require_linear_env(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("LINEAR_API_KEY", raising=False)
+    monkeypatch.delenv("LINEAR_PROJECT_SLUG", raising=False)
+    workflow = load_workflow(
+        _write_workflow(
+            tmp_path,
+            """---
+codex:
+  command: codex app-server
+---
+Prompt
+""",
+        )
+    )
+
+    config = load_service_config(workflow)
+    validate_dispatch_config(config)
+
+    assert config.tracker.kind == "bd"
+    assert config.tracker.api_key is None
+    assert config.tracker.project_slug is None
+    assert config.tracker.active_states == ("open", "in_progress")
+    assert config.tracker.terminal_states == ("closed",)
+
+
 def test_missing_workflow_is_typed_error(tmp_path: Path) -> None:
     with pytest.raises(WorkflowError) as exc_info:
         load_workflow(tmp_path / "missing.md")

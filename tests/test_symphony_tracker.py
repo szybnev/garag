@@ -1,4 +1,4 @@
-"""Linear tracker adapter tests."""
+"""Tracker adapter tests."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ import pytest
 
 from app.symphony.errors import TrackerError
 from app.symphony.models import TrackerConfig
-from app.symphony.tracker import ISSUE_STATES_BY_IDS_QUERY, LinearIssueTracker
+from app.symphony.tracker import ISSUE_STATES_BY_IDS_QUERY, BdIssueTracker, LinearIssueTracker
 
 
 def _config() -> TrackerConfig:
@@ -21,6 +21,17 @@ def _config() -> TrackerConfig:
         project_slug="sec",
         active_states=("Todo", "In Progress"),
         terminal_states=("Done",),
+    )
+
+
+def _bd_config() -> TrackerConfig:
+    return TrackerConfig(
+        kind="bd",
+        endpoint="",
+        api_key=None,
+        project_slug=None,
+        active_states=("open", "in_progress"),
+        terminal_states=("closed",),
     )
 
 
@@ -51,6 +62,57 @@ def _issue(identifier: str, state: str = "Todo") -> dict[str, Any]:
             ]
         },
     }
+
+
+def _bd_issue(identifier: str, status: str = "open") -> dict[str, Any]:
+    return {
+        "id": identifier,
+        "title": f"Title {identifier}",
+        "description": "desc",
+        "status": status,
+        "priority": 2,
+        "labels": ["Security"],
+        "created_at": "2026-05-04T07:48:23.900524611Z",
+        "updated_at": "2026-05-04T07:49:23Z",
+    }
+
+
+def test_bd_fetch_candidate_issues_parses_ready_json(tmp_path) -> None:
+    calls: list[tuple[list[str], str]] = []
+
+    def runner(command, cwd) -> str:
+        calls.append((list(command), str(cwd)))
+        return json.dumps([_bd_issue("garag-123")])
+
+    tracker = BdIssueTracker(_bd_config(), root=tmp_path, command_runner=runner)
+    issues = tracker.fetch_candidate_issues()
+
+    assert [issue.identifier for issue in issues] == ["garag-123"]
+    assert issues[0].id == "garag-123"
+    assert issues[0].state == "open"
+    assert issues[0].labels == ["security"]
+    assert issues[0].created_at is not None
+    assert calls == [(["bd", "ready", "--json"], str(tmp_path))]
+
+
+def test_bd_refresh_and_terminal_cleanup_read_jsonl(tmp_path) -> None:
+    beads = tmp_path / ".beads"
+    beads.mkdir()
+    (beads / "issues.jsonl").write_text(
+        "\n".join(
+            [
+                json.dumps(_bd_issue("garag-open", "open")),
+                json.dumps(_bd_issue("garag-progress", "in_progress")),
+                json.dumps(_bd_issue("garag-closed", "closed")),
+            ]
+        ),
+        encoding="utf-8",
+    )
+    tracker = BdIssueTracker(_bd_config(), root=tmp_path)
+
+    assert [issue.id for issue in tracker.fetch_issues_by_states(["closed"])] == ["garag-closed"]
+    refreshed = tracker.fetch_issue_states_by_ids(["garag-progress", "missing"])
+    assert [(issue.id, issue.state) for issue in refreshed] == [("garag-progress", "in_progress")]
 
 
 def test_fetch_candidate_issues_paginates_and_normalizes() -> None:

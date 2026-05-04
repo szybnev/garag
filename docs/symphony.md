@@ -5,13 +5,17 @@ This repository includes a local Python implementation of the OpenAI Symphony dr
 Run it with:
 
 ```bash
-uv run python -m scripts.symphony path/to/WORKFLOW.md
+uv run scripts/symphony.py path/to/WORKFLOW.md
 ```
 
 If the workflow path is omitted, Symphony reads `./WORKFLOW.md`.
 
-For local manual runs, the convenience wrapper checks the workflow file, `LINEAR_API_KEY`, and
-`codex` before starting:
+The repository ships a default `WORKFLOW.md` that uses the local bd tracker:
+
+- candidate dispatch comes from `bd ready --json`
+- state refresh and terminal cleanup read `.beads/issues.jsonl`
+
+For local manual runs, the convenience wrapper checks the workflow file and `codex` before starting:
 
 ```bash
 scripts/run_symphony.sh path/to/WORKFLOW.md
@@ -28,7 +32,8 @@ uv run scripts/symphony.py path/to/WORKFLOW.md
 - `WORKFLOW.md` loader with YAML front matter and strict prompt rendering.
 - Typed config defaults and `$VAR` resolution for configured secret/path fields.
 - Dynamic workflow reload on poll ticks; invalid reloads keep the last known-good config.
-- Linear-compatible read adapter for candidate fetch, terminal fetch, and state refresh.
+- Local bd read adapter for candidate fetch, terminal fetch, and state refresh.
+- Optional legacy Linear-compatible read adapter for external tracker experiments.
 - Per-issue workspace creation, safe key sanitization, root containment checks, and hooks.
 - Async orchestrator with dispatch sorting, concurrency limits, claims, reconciliation, retries,
   startup terminal cleanup, and runtime snapshots.
@@ -52,6 +57,10 @@ calls return a structured failure result.
 
 ## Real Integration Checks
 
-Unit tests use fake clients and do not contact Linear or Codex. Before production use, run a real
-smoke test with an isolated Linear project, a disposable workspace root, valid `LINEAR_API_KEY`,
-and a Codex configuration appropriate for the host's trust boundary.
+Unit tests use fake clients and do not contact external trackers or Codex. Before production use,
+run a real smoke test with local bd issues, a disposable workspace root, and a Codex configuration
+appropriate for the host's trust boundary.
+
+Linear remains available only as a legacy adapter. To use it, set `tracker.kind: linear` and provide
+`tracker.api_key`/`tracker.project_slug` in the workflow, for example via `$LINEAR_API_KEY` and
+`$LINEAR_PROJECT_SLUG`.

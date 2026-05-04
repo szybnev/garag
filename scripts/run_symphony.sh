@@ -11,7 +11,6 @@ Usage:
 
 Environment:
   SYMPHONY_WORKFLOW=/path/to/WORKFLOW.md
-  LINEAR_API_KEY=...
 EOF
   exit 0
 fi
@@ -19,11 +18,6 @@ fi
 if [[ ! -f "$WORKFLOW_PATH" ]]; then
   echo "WORKFLOW.md not found: $WORKFLOW_PATH" >&2
   echo "Run scripts/run_symphony.sh --help for usage." >&2
-  exit 2
-fi
-
-if [[ -z "${LINEAR_API_KEY:-}" ]]; then
-  echo "LINEAR_API_KEY is not set. Export it or reference another env var from WORKFLOW.md." >&2
   exit 2
 fi
 

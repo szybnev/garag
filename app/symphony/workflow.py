@@ -11,7 +11,7 @@ from jinja2 import Environment, StrictUndefined, TemplateError
 from app.symphony.errors import WorkflowError
 from app.symphony.models import Issue, WorkflowDefinition
 
-DEFAULT_PROMPT = "You are working on an issue from Linear."
+DEFAULT_PROMPT = "You are working on a bd issue."
 
 
 def select_workflow_path(path: str | Path | None = None, cwd: Path | None = None) -> Path:

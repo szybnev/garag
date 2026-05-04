@@ -15,7 +15,7 @@ from app.symphony.workflow import WorkflowDefinition, render_prompt
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from app.symphony.tracker import LinearIssueTracker
+    from app.symphony.tracker import IssueTracker
     from app.symphony.workspace import WorkspaceManager
 
 EventCallback = Callable[[AgentEvent], Awaitable[None] | None]
@@ -274,7 +274,7 @@ class AgentRunner:
         config: ServiceConfig,
         workflow: WorkflowDefinition,
         workspace_manager: WorkspaceManager,
-        tracker: LinearIssueTracker,
+        tracker: IssueTracker,
         client_factory: Callable[
             [ServiceConfig, Path, EventCallback],
             CodexAppServerClient,
@@ -306,6 +306,7 @@ class AgentRunner:
                 "before_run",
                 workspace.path,
                 fatal=True,
+                issue_identifier=issue.identifier,
             )
             await client.start()
             active_issue = issue
@@ -331,6 +332,7 @@ class AgentRunner:
                 "after_run",
                 workspace.path,
                 fatal=False,
+                issue_identifier=issue.identifier,
             )
         return workspace
 

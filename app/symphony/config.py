@@ -19,8 +19,12 @@ from app.symphony.models import (
     WorkspaceConfig,
 )
 
-DEFAULT_ACTIVE_STATES = ("Todo", "In Progress")
-DEFAULT_TERMINAL_STATES = ("Closed", "Cancelled", "Canceled", "Duplicate", "Done")
+DEFAULT_TRACKER_KIND = "bd"
+SUPPORTED_TRACKER_KINDS = {"bd", "linear"}
+DEFAULT_BD_ACTIVE_STATES = ("open", "in_progress")
+DEFAULT_BD_TERMINAL_STATES = ("closed",)
+DEFAULT_LINEAR_ACTIVE_STATES = ("Todo", "In Progress")
+DEFAULT_LINEAR_TERMINAL_STATES = ("Closed", "Cancelled", "Canceled", "Duplicate", "Done")
 DEFAULT_LINEAR_ENDPOINT = "https://api.linear.app/graphql"
 
 
@@ -35,26 +39,29 @@ def load_service_config(workflow: WorkflowDefinition) -> ServiceConfig:
     agent_raw = _mapping(raw.get("agent"))
     codex_raw = _mapping(raw.get("codex"))
 
-    kind = _optional_string(tracker_raw.get("kind"))
-    endpoint = _optional_string(tracker_raw.get("endpoint")) or DEFAULT_LINEAR_ENDPOINT
+    kind = (_optional_string(tracker_raw.get("kind")) or DEFAULT_TRACKER_KIND).lower()
+    endpoint = _optional_string(tracker_raw.get("endpoint")) or (
+        DEFAULT_LINEAR_ENDPOINT if kind == "linear" else ""
+    )
     api_key = _resolve_secret(_optional_string(tracker_raw.get("api_key")))
     if kind == "linear" and api_key is None:
         api_key = _empty_to_none(os.environ.get("LINEAR_API_KEY"))
+    active_default, terminal_default = _tracker_state_defaults(kind)
 
     return ServiceConfig(
         workflow_path=workflow.path,
         tracker=TrackerConfig(
-            kind=kind or "",
+            kind=kind,
             endpoint=endpoint,
             api_key=api_key,
-            project_slug=_optional_string(tracker_raw.get("project_slug")),
+            project_slug=_resolve_secret(_optional_string(tracker_raw.get("project_slug"))),
             active_states=_string_tuple(
                 tracker_raw.get("active_states"),
-                default=DEFAULT_ACTIVE_STATES,
+                default=active_default,
             ),
             terminal_states=_string_tuple(
                 tracker_raw.get("terminal_states"),
-                default=DEFAULT_TERMINAL_STATES,
+                default=terminal_default,
             ),
         ),
         polling=PollingConfig(interval_ms=_positive_int(polling_raw.get("interval_ms"), 30_000)),
@@ -89,14 +96,20 @@ def load_service_config(workflow: WorkflowDefinition) -> ServiceConfig:
 def validate_dispatch_config(config: ServiceConfig) -> None:
     """Validate the fields required before dispatching new work."""
 
-    if config.tracker.kind != "linear":
-        raise ConfigError("unsupported_tracker_kind", "tracker.kind must be 'linear'")
-    if not config.tracker.api_key:
+    if config.tracker.kind not in SUPPORTED_TRACKER_KINDS:
+        raise ConfigError("unsupported_tracker_kind", "tracker.kind must be 'bd' or 'linear'")
+    if config.tracker.kind == "linear" and not config.tracker.api_key:
         raise ConfigError("missing_tracker_api_key", "tracker.api_key is required")
-    if not config.tracker.project_slug:
+    if config.tracker.kind == "linear" and not config.tracker.project_slug:
         raise ConfigError("missing_tracker_project_slug", "tracker.project_slug is required")
     if not config.codex.command.strip():
         raise ConfigError("missing_codex_command", "codex.command is required")
+
+
+def _tracker_state_defaults(kind: str) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    if kind == "linear":
+        return DEFAULT_LINEAR_ACTIVE_STATES, DEFAULT_LINEAR_TERMINAL_STATES
+    return DEFAULT_BD_ACTIVE_STATES, DEFAULT_BD_TERMINAL_STATES
 
 
 def _mapping(value: Any) -> dict[str, Any]:

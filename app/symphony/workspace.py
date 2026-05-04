@@ -2,16 +2,14 @@
 
 from __future__ import annotations
 
+import os
 import re
 import shutil
 import subprocess
-from typing import TYPE_CHECKING
+from pathlib import Path
 
 from app.symphony.errors import WorkspaceError
 from app.symphony.models import HooksConfig, Workspace, WorkspaceConfig
-
-if TYPE_CHECKING:
-    from pathlib import Path
 
 SAFE_KEY_PATTERN = re.compile(r"[^A-Za-z0-9._-]")
 
@@ -45,7 +43,12 @@ class WorkspaceManager:
 
         workspace = Workspace(path=path, workspace_key=key, created_now=created_now)
         if created_now and self.hooks.after_create:
-            self.run_hook("after_create", workspace.path, fatal=True)
+            self.run_hook(
+                "after_create",
+                workspace.path,
+                fatal=True,
+                issue_identifier=identifier,
+            )
         return workspace
 
     def remove_for_identifier(self, identifier: str) -> None:
@@ -56,7 +59,12 @@ class WorkspaceManager:
         if not path.exists():
             return
         if self.hooks.before_remove:
-            self.run_hook("before_remove", path, fatal=False)
+            self.run_hook(
+                "before_remove",
+                path,
+                fatal=False,
+                issue_identifier=identifier,
+            )
         shutil.rmtree(path)
 
     def validate_inside_root(self, path: Path) -> None:
@@ -79,7 +87,14 @@ class WorkspaceManager:
         if resolved_cwd != resolved_workspace:
             raise WorkspaceError("invalid_workspace_cwd", "Agent cwd must equal workspace path")
 
-    def run_hook(self, name: str, cwd: Path, *, fatal: bool) -> None:
+    def run_hook(
+        self,
+        name: str,
+        cwd: Path,
+        *,
+        fatal: bool,
+        issue_identifier: str | None = None,
+    ) -> None:
         """Run a configured hook script in a workspace directory."""
 
         script = getattr(self.hooks, name)
@@ -89,6 +104,12 @@ class WorkspaceManager:
             subprocess.run(  # noqa: S603
                 ["/usr/bin/env", "bash", "-lc", script],
                 cwd=cwd,
+                env=os.environ
+                | {
+                    "SYMPHONY_ISSUE_IDENTIFIER": issue_identifier or "",
+                    "SYMPHONY_SERVICE_CWD": str(Path.cwd()),
+                    "SYMPHONY_WORKSPACE": str(cwd),
+                },
                 timeout=self.hooks.timeout_ms / 1000,
                 check=True,
                 capture_output=True,

@@ -1,9 +1,13 @@
-"""Linear-compatible issue tracker adapter."""
+"""Issue tracker adapters used by Symphony orchestration."""
 
 from __future__ import annotations
 
+import json
+import subprocess
+from collections.abc import Callable, Sequence
 from datetime import datetime
-from typing import Any
+from pathlib import Path
+from typing import Any, Protocol
 
 import httpx
 
@@ -12,6 +16,26 @@ from app.symphony.models import BlockerRef, Issue, TrackerConfig
 
 PAGE_SIZE = 50
 NETWORK_TIMEOUT_S = 30.0
+BD_READY_COMMAND = ("bd", "ready", "--json")
+BD_ISSUES_PATH = Path(".beads") / "issues.jsonl"
+BdCommandRunner = Callable[[Sequence[str], Path], str]
+
+
+class IssueTracker(Protocol):
+    """Read-only issue tracker contract used by the scheduler and agent runner."""
+
+    def fetch_candidate_issues(self) -> list[Issue]:
+        """Return issues eligible for scheduler consideration."""
+        ...
+
+    def fetch_issues_by_states(self, state_names: list[str]) -> list[Issue]:
+        """Return issues in the supplied tracker states."""
+        ...
+
+    def fetch_issue_states_by_ids(self, issue_ids: list[str]) -> list[Issue]:
+        """Return current issue state snapshots by tracker IDs."""
+        ...
+
 
 CANDIDATE_ISSUES_QUERY = """
 query SymphonyCandidateIssues($projectSlug: String!, $states: [String!], $after: String) {
@@ -280,3 +304,116 @@ def _blockers(value: Any) -> list[BlockerRef]:
             )
         )
     return blockers
+
+
+class BdIssueTracker:
+    """Read-only local bd adapter.
+
+    Candidate dispatch uses `bd ready --json`; refresh and cleanup read the local JSONL database
+    directly because some bd list/show commands are less stable in this repository clone.
+    """
+
+    def __init__(
+        self,
+        config: TrackerConfig,
+        *,
+        root: Path | None = None,
+        command_runner: BdCommandRunner | None = None,
+    ) -> None:
+        self.config = config
+        self.root = (root or Path.cwd()).resolve()
+        self._command_runner = command_runner or _run_bd_command
+
+    def fetch_candidate_issues(self) -> list[Issue]:
+        """Return issues from `bd ready --json`."""
+
+        payload = self._command_runner(BD_READY_COMMAND, self.root)
+        raw_issues = _json_list(payload, "bd_ready_payload")
+        return [_normalize_bd_issue(issue) for issue in raw_issues]
+
+    def fetch_issues_by_states(self, state_names: list[str]) -> list[Issue]:
+        """Return local bd issues whose status matches any supplied state."""
+
+        if not state_names:
+            return []
+        state_keys = {state.lower() for state in state_names}
+        return [issue for issue in self._read_local_issues() if issue.state.lower() in state_keys]
+
+    def fetch_issue_states_by_ids(self, issue_ids: list[str]) -> list[Issue]:
+        """Return local bd issues matching the supplied IDs."""
+
+        if not issue_ids:
+            return []
+        wanted = set(issue_ids)
+        return [issue for issue in self._read_local_issues() if issue.id in wanted]
+
+    def _read_local_issues(self) -> list[Issue]:
+        path = self.root / BD_ISSUES_PATH
+        try:
+            lines = path.read_text(encoding="utf-8").splitlines()
+        except OSError as exc:
+            raise TrackerError("bd_issues_read_failed", f"Unable to read {path}") from exc
+
+        issues: list[Issue] = []
+        for line_number, line in enumerate(lines, start=1):
+            if not line.strip():
+                continue
+            try:
+                payload = json.loads(line)
+            except json.JSONDecodeError as exc:
+                raise TrackerError(
+                    "bd_issues_parse_failed",
+                    f"Invalid JSON in {path}:{line_number}",
+                ) from exc
+            if isinstance(payload, dict):
+                issues.append(_normalize_bd_issue(payload))
+        return issues
+
+
+def _run_bd_command(command: Sequence[str], cwd: Path) -> str:
+    try:
+        result = subprocess.run(  # noqa: S603
+            list(command),
+            cwd=cwd,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+    except OSError as exc:
+        raise TrackerError("bd_command_failed", "Unable to execute bd") from exc
+
+    if result.returncode != 0:
+        message = (result.stderr or result.stdout or "bd command failed").strip()
+        raise TrackerError("bd_command_failed", message[:500])
+    return result.stdout
+
+
+def _json_list(raw: str, code: str) -> list[dict[str, Any]]:
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise TrackerError(code, "bd returned invalid JSON") from exc
+    if not isinstance(payload, list):
+        raise TrackerError(code, "bd returned non-list JSON")
+    return [item for item in payload if isinstance(item, dict)]
+
+
+def _normalize_bd_issue(node: dict[str, Any]) -> Issue:
+    issue_id = str(node.get("id") or "")
+    return Issue(
+        id=issue_id,
+        identifier=issue_id,
+        title=str(node.get("title") or ""),
+        description=_optional_str(node.get("description")),
+        priority=_optional_int(node.get("priority")),
+        state=str(node.get("status") or ""),
+        labels=_bd_labels(node.get("labels")),
+        created_at=_parse_dt(node.get("created_at")),
+        updated_at=_parse_dt(node.get("updated_at")),
+    )
+
+
+def _bd_labels(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [item.lower() for item in value if isinstance(item, str)]
