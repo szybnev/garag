@@ -117,8 +117,12 @@ curl -s -X POST http://localhost:8000/query \
 
 ```bash
 uv run python -m scripts.eval_retrieval --golden data/golden/golden_set_v1.jsonl
-uv run python -m scripts.eval_generation --golden data/golden/golden_set_v1.jsonl
-uv run python -m scripts.nfr_benchmark --limit 20 --warmup 3 --top-k 3
+uv run python -m scripts.eval_generation --golden data/golden/golden_set_v1.jsonl \
+  --top-k 12 \
+  --judge-provider openai_compat \
+  --judge-base-url http://localhost:1234/v1 \
+  --judge-model zai-org/glm-4.7-flash
+uv run python -m scripts.nfr_benchmark --limit 20 --warmup 3 --top-k 12
 ```
 
 Reports land in `evaluation/reports/`. Current targets:
@@ -140,9 +144,19 @@ Qdrant collection and measure full indexing time. Add `--fail-on-target-miss`
 when using the benchmark as a CI-style gate.
 
 The throughput target is scoped to the single-user academic MVP with a local
-LM Studio-hosted GLM generator and the NFR benchmark's `top_k=3` context budget.
+LM Studio-hosted GLM generator and the NFR benchmark's `top_k=12` context budget.
 The ≥2 RPS target is deferred to a serving-focused increment such as a smaller
 generator or a different optimized serving stack.
+
+Latest LM Studio snapshot on `golden_set_v1`:
+
+| Metric | Value |
+|---|---:|
+| Generation faithfulness | 0.900 |
+| Generation correctness | 0.920 |
+| Citation accuracy | 1.000 |
+| p95 e2e latency (warm, top_k=12) | 2.14 s |
+| Throughput (top_k=12) | 0.826 RPS |
 
 Latest retrieval snapshot on `golden_set_v1` after MITRE tactic enrichment and
 BM25 identifier indexing:

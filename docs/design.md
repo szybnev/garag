@@ -66,11 +66,11 @@ runtime NFR measurements are reported under `evaluation/reports/`.
 | Metric | Target | Rationale |
 |---|---|---|
 | e2e latency (p95, warm) | ≤ 8 s | Interactive Q&A on a single-user RTX 5090 |
-| Throughput | ≥ 0.5 RPS | Single local instance, 35B LM Studio generator, benchmark `top_k=3` |
+| Throughput | ≥ 0.5 RPS | Single local instance, 35B LM Studio generator, benchmark `top_k=12` |
 | Indexing time (full corpus) | ≤ 20 min | One-off on cold Qdrant, acceptable for a rebuild step |
 | Retrieval Recall@10 | ≥ 0.75 | Measured on the 50-item golden set with hybrid + reranker |
 | Retrieval nDCG@10 | ≥ 0.65 | Same |
-| Generation faithfulness | ≥ 0.80 | LLM-as-judge (`qwen3.5:35b`), 0–1 scale |
+| Generation faithfulness | ≥ 0.80 | LLM-as-judge, 0–1 scale |
 | Generation correctness | ≥ 0.70 | LLM-as-judge vs reference answer |
 | Citation accuracy | ≥ 0.85 | Fraction of citations pointing to returned chunks |
 | Peak VRAM (without LLM) | ≤ 6 GB | local retrieval stack excluding the LM Studio-hosted generator |
@@ -82,8 +82,8 @@ recreates the Qdrant collection.
 
 The measured throughput bottleneck is the generator, not retrieval: the NFR
 report shows retrieval plus rerank in tens of milliseconds while the 35B local
-LLM takes seconds per answer. The benchmark uses `top_k=3` to keep tool-usage
-contexts bounded for the interactive MVP. A ≥2 RPS target is therefore treated
+LLM takes seconds per answer. The benchmark uses `top_k=12`, matching the
+runtime rerank default. A ≥2 RPS target is therefore treated
 as future serving work rather than the v0.1.0 single-user MVP gate.
 
 These targets are intentionally loose. The point of the MVP is to prove the
@@ -195,20 +195,23 @@ Raw grid results and per-config breakdown live in
 `evaluation/results/gen_params_grid.json` and
 `experiments/04_generation_params.ipynb`.
 
-### 4.5 LLM-as-judge: `qwen3.5:35b`
+### 4.5 LLM-as-judge
 
 Originally planned as a separate (larger) model than the generator to reduce
 the "grading your own homework" bias. Generation evaluation originally used
 `qwen3.5:35b` for both generation and judging; the runtime generator now
-defaults to `zai-org/glm-4.7-flash` through LM Studio, while the judge remains
-the Ollama-hosted `qwen3.5:35b` fallback model. Treat older generation reports
-with the caveat below:
+defaults to `zai-org/glm-4.7-flash` through LM Studio. `scripts.eval_generation`
+supports both the Ollama-hosted `qwen3.5:35b` judge path and an
+OpenAI-compatible LM Studio judge path. The latest LM Studio snapshot uses
+`zai-org/glm-4.7-flash` as both generator and judge because the local Ollama
+judge server was not available for that run. Treat reports with the caveat
+below:
 
 1. **Self-bias caveat** is printed verbatim in the header of every report
    produced by `scripts/eval_generation.py` — literature on LLM-as-judge
    (Zheng et al. 2023) reports 5-15 % upward bias on faithfulness when the
    generator and judge models agree on a checkpoint. Treat absolute numbers
-   as upper bounds for those older runs and rely on per-category deltas +
+   as upper bounds for self-judged runs and rely on per-category deltas +
    manual 10-sample review for qualitative signal.
 2. **Cross-model rerun** (GPT-4o or Claude as judge) is deferred alongside the
    10-LLM benchmark.
