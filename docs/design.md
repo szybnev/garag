@@ -53,9 +53,8 @@ four sources still cover the MVP scope.
 
 ## 3. Non-functional requirements
 
-All thresholds are **targets for the MVP**. Retrieval and generation quality are
-reported under `evaluation/reports/`; the dedicated NFR benchmark script and
-`evaluation/reports/nfr_report.md` are planned hardening work.
+All thresholds are **targets for the MVP**. Retrieval, generation quality, and
+runtime NFR measurements are reported under `evaluation/reports/`.
 
 | Metric | Target | Rationale |
 |---|---|---|
@@ -69,6 +68,10 @@ reported under `evaluation/reports/`; the dedicated NFR benchmark script and
 | Citation accuracy | ≥ 0.85 | Fraction of citations pointing to returned chunks |
 | Peak VRAM (without LLM) | ≤ 6 GB | bge-m3 + bge-reranker-v2-m3 together |
 | Peak VRAM (with LLM) | ≤ 28 GB | Headroom on the RTX 5090 (32 GB) |
+
+`scripts.nfr_benchmark` measures the real HTTP `/query` path for latency and
+throughput. Full indexing time is opt-in via `--run-indexing` because it
+recreates the Qdrant collection.
 
 These targets are intentionally loose. The point of the MVP is to prove the
 hybrid+rerank+structured-output pipeline runs end-to-end and clears the

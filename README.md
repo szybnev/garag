@@ -10,8 +10,8 @@ MVP for the **GigaSchool LLM-Engineer** final project (track A). Dedicated slice
 
 Runtime MVP is implemented: hybrid retrieval, reranking, generation, FastAPI,
 Gradio mounted under FastAPI, Prometheus metrics, Docker Compose wiring, and
-evaluation scripts. Security guardrails, garak runner, and the NFR benchmark
-script are planned work.
+evaluation/NFR benchmark scripts. Security guardrails and the garak runner are
+planned work.
 
 Target release: **v0.1.0-garag** — 2026-04-24.
 
@@ -97,6 +97,7 @@ curl -s -X POST http://localhost:8000/query \
 ```bash
 uv run python -m scripts.eval_retrieval --golden data/golden/golden_set_v1.jsonl
 uv run python -m scripts.eval_generation --golden data/golden/golden_set_v1.jsonl
+uv run python -m scripts.nfr_benchmark --limit 20 --warmup 3
 ```
 
 Reports land in `evaluation/reports/`. Current targets:
@@ -111,6 +112,11 @@ Reports land in `evaluation/reports/`. Current targets:
 | p95 e2e latency (warm) | ≤ 8 s |
 | Throughput | ≥ 2 RPS |
 | Indexing time | ≤ 20 min |
+
+`scripts.nfr_benchmark` measures real HTTP `/query` latency and throughput by
+default. Add `--run-indexing` only when you intentionally want to rebuild the
+Qdrant collection and measure full indexing time. Add `--fail-on-target-miss`
+when using the benchmark as a CI-style gate.
 
 ## Security testing
 
@@ -128,7 +134,7 @@ The corpus is rebuilt from scratch by the scripts under `scripts/`. Raw scraped 
 - GraphRAG, Agentic RAG
 - Fine-tuning (QLoRA / DPO)
 - Extended golden set (100–150 pairs)
-- `garak` runner, LLM Guard hooks, and full NFR benchmark script
+- `garak` runner and LLM Guard hooks
 
 These live in [PoxekBook](./docs/roadmap_to_poxekbook.md).
 

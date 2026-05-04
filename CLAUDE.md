@@ -240,6 +240,7 @@ touching the affected modules.**
 | `app/rag/fusion.py` | RRF + alpha-weighted, with unit tests |
 | `app/rag/reranker.py` | bge-reranker-v2-m3 wrapper |
 | `scripts/fetch_*.py` | per-source download (5 files) |
+| `scripts/nfr_benchmark.py` | HTTP runtime NFR benchmark |
 | `scripts/parsers/*.py` | per-source `Document` constructors (5 files) |
 | `scripts/parse_sources.py` | unified pipeline orchestrator |
 | `scripts/chunk_corpus.py` | chonkie RecursiveChunker 256 gpt2 |

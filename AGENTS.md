@@ -193,6 +193,7 @@ Reference paths:
 | `app/rag/retriever_dense.py` | Qdrant `query_points` |
 | `app/rag/retriever_sparse.py` | BM25Okapi pickle loader |
 | `app/rag/fusion.py` | RRF and alpha-weighted fusion |
+| `scripts/nfr_benchmark.py` | HTTP runtime NFR benchmark |
 
 ## Sharp Edges
 

@@ -38,7 +38,7 @@ What follows is the delta between GaRAG v0.1.0 and PoxekBook v1.0.
 
 - LLM Guard input/output guardrails wired into `/query`
 - Full `garak` probe set + custom cybersec-specific jailbreak probes
-- NFR benchmark script for latency, throughput, and indexing time
+- Extended NFR benchmark sweeps for latency, throughput, and indexing time
 - Adversarial golden set with known prompt-injection payloads
 - Request-level cost tracking (tokens in/out, per-stage GPU seconds)
 - Multi-tenant auth + rate limiting (per-API-key throttling)
