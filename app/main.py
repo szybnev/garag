@@ -164,6 +164,14 @@ def _format_sources(citations: list[Citation]) -> str:
     return "\n\n".join(lines)
 
 
+def _target_generator_model_label() -> str:
+    if settings.llm_provider == "openai_compat":
+        model = settings.openai_model
+    else:
+        model = settings.ollama_model
+    return f"**Target generator model:** `{model}` (`{settings.llm_provider}`)"
+
+
 def _build_gradio_app(app: FastAPI) -> gr.Blocks:
     def ask(question: str, top_k: int) -> tuple[str, str, str]:
         pipeline = _get_pipeline(app)
@@ -178,6 +186,7 @@ def _build_gradio_app(app: FastAPI) -> gr.Blocks:
 
     with gr.Blocks(title="GaRAG") as demo:
         gr.Markdown("# GaRAG")
+        gr.Markdown(_target_generator_model_label())
         question = gr.Textbox(label="Question", lines=3)
         top_k = gr.Slider(label="Top K", minimum=1, maximum=20, value=5, step=1)
         submit = gr.Button("Ask")
