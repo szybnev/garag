@@ -24,6 +24,7 @@ from app.rag.generator import GenerationError, Generator
 from app.rag.pipeline import HybridRetriever
 from app.rag.query_pipeline import QueryPipeline
 from app.rag.reranker import Reranker
+from app.rag.retriever_dense import DenseRetriever
 from app.schemas import QueryRequest, QueryResponse
 
 logger = logging.getLogger(__name__)
@@ -34,7 +35,12 @@ PipelineFactory = Callable[[], Any]
 def build_pipeline() -> QueryPipeline:
     """Construct the real retrieval + generation pipeline for runtime use."""
     reranker = Reranker()
+    dense = DenseRetriever(
+        qdrant_url=settings.qdrant_url,
+        collection=settings.qdrant_collection,
+    )
     retriever = HybridRetriever(
+        dense=dense,
         reranker=reranker,
         fusion=settings.fusion_method,
         alpha=settings.fusion_alpha,

@@ -7,7 +7,8 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from app.main import create_app
+from app.config import settings
+from app.main import build_pipeline, create_app
 from app.rag.generator import GenerationError
 from app.schemas import QueryResponse
 
@@ -111,3 +112,40 @@ def test_gradio_is_mounted(fake_pipeline: _FakePipeline) -> None:
         response = client.get("/gradio/")
 
     assert response.status_code != 404
+
+
+def test_build_pipeline_passes_configured_qdrant_url(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, Any] = {}
+
+    class FakeReranker:
+        pass
+
+    class FakeDenseRetriever:
+        def __init__(self, *, qdrant_url: str, collection: str) -> None:
+            captured["qdrant_url"] = qdrant_url
+            captured["collection"] = collection
+
+    class FakeHybridRetriever:
+        def __init__(self, **kwargs: Any) -> None:
+            captured["dense"] = kwargs["dense"]
+
+    class FakeGenerator:
+        pass
+
+    class FakeQueryPipeline:
+        def __init__(self, **kwargs: Any) -> None:
+            captured["pipeline"] = kwargs
+
+    monkeypatch.setattr(settings, "qdrant_url", "http://qdrant.test:6333")
+    monkeypatch.setattr(settings, "qdrant_collection", "garag_test")
+    monkeypatch.setattr("app.main.Reranker", FakeReranker)
+    monkeypatch.setattr("app.main.DenseRetriever", FakeDenseRetriever)
+    monkeypatch.setattr("app.main.HybridRetriever", FakeHybridRetriever)
+    monkeypatch.setattr("app.main.Generator", FakeGenerator)
+    monkeypatch.setattr("app.main.QueryPipeline", FakeQueryPipeline)
+
+    build_pipeline()
+
+    assert captured["qdrant_url"] == "http://qdrant.test:6333"
+    assert captured["collection"] == "garag_test"
+    assert captured["pipeline"]["retriever"] is not None
