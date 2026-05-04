@@ -60,9 +60,7 @@ def _valid_response_json(chunk_id: str = "mitre_attack:T0::0") -> str:
     return json.dumps(
         {
             "answer": "Canned mock answer for the QueryPipeline tests.",
-            "citations": [
-                {"chunk_id": chunk_id, "quote": "verbatim quote from the chunk body"}
-            ],
+            "citations": [{"chunk_id": chunk_id, "quote": "verbatim quote from the chunk body"}],
             "confidence": 0.9,
             "used_chunks": [chunk_id],
         }

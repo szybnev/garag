@@ -54,9 +54,7 @@ GOLDEN_FILE = Path(__file__).resolve().parents[1] / "data" / "golden" / "golden_
 REPORT_FILE = (
     Path(__file__).resolve().parents[1] / "evaluation" / "reports" / "generation_report.md"
 )
-RAW_FILE = (
-    Path(__file__).resolve().parents[1] / "evaluation" / "results" / "generation_eval.json"
-)
+RAW_FILE = Path(__file__).resolve().parents[1] / "evaluation" / "results" / "generation_eval.json"
 
 
 @dataclass
@@ -98,9 +96,7 @@ def _aggregate(rows: list[EvalRow]) -> dict[str, float]:
     n = len(rows)
     faith_values = [r.faithfulness for r in judged_rows if r.faithfulness is not None]
     corr_values = [r.correctness for r in judged_rows if r.correctness is not None]
-    cite_sup_values = [
-        r.citation_support for r in judged_rows if r.citation_support is not None
-    ]
+    cite_sup_values = [r.citation_support for r in judged_rows if r.citation_support is not None]
     total_latencies = [r.latency_ms.get("total", 0.0) for r in parsed_rows]
     return {
         "n_queries": float(n),
@@ -113,9 +109,7 @@ def _aggregate(rows: list[EvalRow]) -> dict[str, float]:
         "faithfulness_mean": (
             round(statistics.fmean(faith_values) / 2.0, 4) if faith_values else 0.0
         ),
-        "correctness_mean": (
-            round(statistics.fmean(corr_values) / 2.0, 4) if corr_values else 0.0
-        ),
+        "correctness_mean": (round(statistics.fmean(corr_values) / 2.0, 4) if corr_values else 0.0),
         "citation_support_mean": (
             round(statistics.fmean(cite_sup_values) / 2.0, 4) if cite_sup_values else 0.0
         ),
@@ -155,12 +149,8 @@ def _render_report(
     lines.append("## Overall metrics\n")
     lines.append("| metric | value | NFR target |")
     lines.append("|---|---|---|")
-    lines.append(
-        f"| format_rate | **{overall['format_rate']:.3f}** | — |"
-    )
-    lines.append(
-        f"| citation_acc (mechanical) | **{overall['citation_acc']:.3f}** | ≥ 0.85 |"
-    )
+    lines.append(f"| format_rate | **{overall['format_rate']:.3f}** | — |")
+    lines.append(f"| citation_acc (mechanical) | **{overall['citation_acc']:.3f}** | ≥ 0.85 |")
     lines.append(
         f"| faithfulness (judge, /2 norm) | **{overall['faithfulness_mean']:.3f}** | ≥ 0.80 |"
     )
@@ -170,9 +160,7 @@ def _render_report(
     lines.append(
         f"| citation_support (judge, /2 norm) | **{overall['citation_support_mean']:.3f}** | — |"
     )
-    lines.append(
-        f"| judge format failures | {int(overall['judge_format_failures'])} | — |"
-    )
+    lines.append(f"| judge format failures | {int(overall['judge_format_failures'])} | — |")
     lines.append(
         f"| mean / p95 latency | "
         f"{overall['mean_latency_ms']:.0f} ms / {overall['p95_latency_ms']:.0f} ms | "
@@ -180,9 +168,7 @@ def _render_report(
     )
     lines.append("")
     lines.append("## Per-category breakdown\n")
-    lines.append(
-        "| category | n | format | cit_acc | faith | corr | cit_sup | p95 ms |"
-    )
+    lines.append("| category | n | format | cit_acc | faith | corr | cit_sup | p95 ms |")
     lines.append("|---|---|---|---|---|---|---|---|")
     for cat in ("factual", "tool_usage", "multi_hop"):
         if cat not in per_category:
@@ -248,9 +234,7 @@ def _run_judge_phase(
 ) -> list[EvalRow]:
     rows: list[EvalRow] = []
     for item, response, format_error in responses:
-        retrieved = retriever.retrieve(
-            item["question"], candidate_k=candidate_k, top_k=top_k
-        )
+        retrieved = retriever.retrieve(item["question"], candidate_k=candidate_k, top_k=top_k)
         retrieved_ids = {c.chunk_id for c in retrieved}
         row = EvalRow(
             qid=item["qid"],
