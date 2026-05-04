@@ -14,8 +14,8 @@ comparing against the NFR thresholds in `docs/design.md §3`.
 
 Why we ship this as a class (not an inline helper inside
 `scripts/eval_generation.py`): `.25` (garak scan), `.26` (NFR benchmark),
-and the future PoxekBook cross-model judge all need the same entry
-point. Keeping it reusable also makes it unit-testable via
+and a future cross-model judge all need the same entry point. Keeping it
+reusable also makes it unit-testable via
 `httpx.MockTransport` the same way `Generator` is.
 
 ## Self-bias caveat
@@ -25,8 +25,7 @@ largest Ollama-available model on the d9 host. Literature on LLM-as-judge
 (e.g. Zheng et al. 2023 "Judging LLM-as-a-Judge") reports self-bias of
 5-15% on the faithfulness dimension when generator and judge share a
 checkpoint. We accept this for the MVP and document it on every report
-this class feeds. Cross-model rerun (GPT-4o or Claude as judge) is
-deferred to PoxekBook increment 2.
+this class feeds. Cross-model rerun (GPT-4o or Claude as judge) is deferred.
 """
 
 from __future__ import annotations

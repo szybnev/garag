@@ -26,8 +26,7 @@ Writes:
 d9 host. Literature reports 5-15% upward bias on faithfulness when
 generator and judge agree on a checkpoint. Treat absolute numbers as
 upper bounds; rely on per-category deltas and the 10-sample manual
-review for qualitative signal. Cross-model rerun is deferred to
-PoxekBook increment 2.
+review for qualitative signal. Cross-model rerun is deferred.
 """
 
 from __future__ import annotations
@@ -142,8 +141,7 @@ def _render_report(
         "and judge, which is known to inflate faithfulness by 5-15% vs a cross-model "
         "judge. Treat the absolute numbers as upper bounds; rely on per-category "
         "deltas and the manual 10-sample review for qualitative signal. "
-        "A cross-model rerun (e.g. GPT-4o or Claude as judge) is deferred to "
-        "PoxekBook increment 2."
+        "A cross-model rerun (e.g. GPT-4o or Claude as judge) is deferred."
     )
     lines.append("")
     lines.append("## Overall metrics\n")

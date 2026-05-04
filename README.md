@@ -2,7 +2,7 @@
 
 **Hybrid RAG over a cybersecurity corpus** — MITRE ATT&CK + ATLAS, OWASP Top 10, public HackerOne reports, security tool man pages.
 
-MVP for the **GigaSchool LLM-Engineer** final project (track A). Dedicated slice of the larger [PoxekBook](./docs/roadmap_to_poxekbook.md) vision.
+MVP for the **GigaSchool LLM-Engineer** final project (track A).
 
 > **Disclaimer.** GaRAG is an **academic project** built as the final assignment for the GigaSchool LLM-Engineer course. It is **not production-ready** and makes no claim of being so. Do not use it in real security operations, do not rely on its output for incident response or vulnerability assessment, and treat every generated answer as educational material that must be independently verified against the cited primary sources. Security scanning (`garak`) and guardrails (LLM Guard) are included as learning exercises, not as hardened defence in depth.
 
@@ -156,7 +156,7 @@ are enriched with the current list of related techniques from
 and the technique list. Procedure examples from ATT&CK `relationship` objects
 are still not indexed in the MVP.
 
-## What's NOT in GaRAG (see `docs/roadmap_to_poxekbook.md`)
+## What's NOT in GaRAG (see `docs/roadmap.md`)
 
 - Comparison of 3 embedding models (E1)
 - 10-LLM benchmark (E6)
@@ -165,7 +165,7 @@ are still not indexed in the MVP.
 - Extended golden set (100–150 pairs)
 - `garak` runner and LLM Guard hooks
 
-These live in [PoxekBook](./docs/roadmap_to_poxekbook.md).
+These are tracked as out-of-scope roadmap items in [`docs/roadmap.md`](./docs/roadmap.md).
 
 ## License
 

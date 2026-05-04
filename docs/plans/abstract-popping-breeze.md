@@ -43,7 +43,7 @@ ASGI-обёртке.
    - `rationale: str` (≤500 chars, debugging tool)
 
    Нормализация в отчёт: `score / 2 → [0, 1]`, чтобы сравнивать с NFR из `docs/design.md §3` (faithfulness ≥ 0.80, correctness ≥ 0.70, citation_acc ≥ 0.85).
-6. **Self-bias caveat** — жирно в header `generation_report.md`. Генератор и судья — одна модель (qwen3.5:35b), по литературе это завышает faithfulness на 5-15% vs cross-model judge. Cross-model rerun отложен в PoxekBook increment 2.
+6. **Self-bias caveat** — жирно в header `generation_report.md`. Генератор и судья — одна модель (qwen3.5:35b), по литературе это завышает faithfulness на 5-15% vs cross-model judge. Cross-model rerun отложен в future work.
 
 ## Files
 
@@ -259,12 +259,12 @@ shared use, либо импорт underscored helper как in-package private).
 
 ## Out of scope
 
-Следующие вещи **не делаются** в d10 и уезжают в d10.5 / d11 / PoxekBook:
+Следующие вещи **не делаются** в d10 и уезжают в d10.5 / d11 / future work:
 
 - FastAPI `/query` + `/health` + `/metrics` → `garag-zqc.20` (d10.5)
 - Gradio UI → `garag-zqc.21` (d11)
 - Prometheus `prometheus_client` metrics wiring → `garag-zqc.20` scope
 - structlog configuration → `garag-zqc.20` scope
 - Dockerfile / docker-compose `app` service → `garag-zqc.22` (d11)
-- Cross-model judge rerun (GPT-4o / Claude) → PoxekBook increment 2
-- Ground truth citations в golden_set (currently `relevant_chunks` есть, но нет gold `quote` per citation) → PoxekBook
+- Cross-model judge rerun (GPT-4o / Claude) → future work
+- Ground truth citations в golden_set (currently `relevant_chunks` есть, но нет gold `quote` per citation) → future work

@@ -4,7 +4,7 @@ Guidance for Claude Code (and any other coding agent) working in this repository
 
 ## Project context
 
-**GaRAG** is the academic MVP slice of a larger PoxekBook vision, submitted as the
+**GaRAG** is an academic MVP submitted as the
 final project for the **GigaSchool LLM-Engineer course (track A)**. It is a hybrid
 retrieval-augmented generation system over a cybersecurity corpus (MITRE ATT&CK +
 ATLAS, OWASP Top 10, public HackerOne reports as **metadata only**, security tool
@@ -15,8 +15,8 @@ must stay intact in any rewrite. Do not remove it.
 
 The full development plan lives at
 `~/kurs/gigaschool/docs/plans/radiant-questing-sutton.md` — it is the source of
-truth for the day-by-day breakdown (d1–d15), NFR thresholds, and the boundary
-between GaRAG (this repo) and PoxekBook (private continuation).
+truth for the day-by-day breakdown (d1–d15), NFR thresholds, and the current
+GaRAG scope.
 
 ## Current state
 
@@ -25,18 +25,18 @@ between GaRAG (this repo) and PoxekBook (private continuation).
 | **Plan day completed** | d10 runtime MVP |
 | **Target release** | `v0.1.0-garag` on 2026-04-24 |
 | **Open public repo** | https://github.com/szybnev/garag |
-| **Private continuation** | https://github.com/szybnev/poxekbook (empty stub) |
 | **bd issue tracker** | local `bd`; run `bd ready` / inspect `.beads/issues.jsonl` |
-| **Test suite** | 90 tests passing, coverage 83% (60% threshold) |
+| **Test suite** | 113 tests passing, coverage 82.30% (60% threshold) |
+| **Local corpus** | 2,544 documents, 3,900 chunks, 3,900 Qdrant points |
 | **Last latency snapshot** | retrieval p95 ~4.1 s with reranker (NFR target: e2e ≤ 8 s) |
 
 ### Latest retrieval metrics on 50 golden queries
 
 | Method | Recall@10 | nDCG@10 | MAP |
 |---|---|---|---|
-| dense (bge-m3) | 0.8600 | 0.7261 | 0.6855 |
-| sparse (BM25 tuned k1=0.8, b=0.5) | 0.8800 | 0.7844 | 0.7532 |
-| hybrid alpha=0.3 | 0.8800 | 0.7890 | 0.7589 |
+| dense (qwen3 embedding) | 0.7600 | 0.6721 | 0.6450 |
+| sparse (BM25 tuned k1=0.8, b=0.5) | 0.8800 | 0.8024 | 0.7779 |
+| hybrid alpha=0.3 | 0.8800 | 0.7880 | 0.7575 |
 | **hybrid + reranker (current default)** | **0.8600** | **0.8089** | **0.7933** |
 
 NFR thresholds (`docs/design.md §3`): Recall@10 ≥ 0.75, nDCG@10 ≥ 0.65 — both
@@ -55,7 +55,7 @@ cleared with 11–16 п.п. headroom. The weak category is **tool_usage** (Recal
 | Fusion | alpha-weighted min-max, **tuned** `alpha=0.3` (RRF k=60 also implemented) |
 | Reranker | `BAAI/bge-reranker-v2-m3` cross-encoder, top-20 → top-5 |
 | Generator (runtime) | `qwen/qwen3.6-35b-a3b` via LM Studio OpenAI-compatible `/v1/chat/completions` |
-| LLM-as-judge | `qwen3.5:35b` (same model — MoE 36B is the largest available locally; self-bias caveat acknowledged for d13) |
+| LLM-as-judge | `qwen3.5:35b`; older same-checkpoint evals carry the d13 self-bias caveat |
 | Structured output | `_GeneratedResponse` JSON schema; OpenAI-compatible `response_format` for LM Studio |
 | Web layer (d10 runtime MVP) | FastAPI `/health` `/query` `/metrics`, Gradio mounted at `/gradio`, Docker Compose |
 | Observability (d11) | Prometheus + Grafana, anonymous viewer |
@@ -85,8 +85,8 @@ uv run python -m scripts.fetch_hackerone_reports --limit 500
 uv run python -m scripts.fetch_man_pages
 uv run python -m scripts.parse_sources           # → data/raw/documents.parquet
 uv run python -m scripts.chunk_corpus            # → data/processed/chunks.parquet
-uv run python -m scripts.build_qdrant            # 3779 points, ~10 s
-uv run python -m scripts.build_bm25              # → data/index/bm25.pkl, ~1 s
+uv run python -m scripts.build_qdrant            # 3900 points, ~10 s
+uv run python -m scripts.build_bm25 --k1 0.8 --b 0.5
 
 # Evaluation
 uv run python -m scripts.eval_retrieval --alpha 0.3 --rerank
@@ -111,7 +111,7 @@ bd sync                                          # MUST run before git push
                   ┌──────────▼──────────────┐
                   │   HybridRetriever       │  app/rag/pipeline.py
                   ├─────────────────────────┤
-                  │ DenseRetriever          │  bge-m3 + Qdrant query_points
+                  │ DenseRetriever          │  qwen3 embedding + Qdrant query_points
                   │ SparseRetriever         │  rank_bm25 pickle
                   │ alpha-weighted fusion   │  alpha=0.3
                   │ Reranker (bge-rer-v2)   │  cross-encoder, top-20→top-5
@@ -216,8 +216,7 @@ touching the affected modules.**
 - **Do not bring up pre-commit hooks.** There is no existing pre-commit
   infrastructure. If we add one later, it should be `prek`, not `pre-commit`.
 - **Do not switch to `src/` layout.** The package lives at `app/` directly to
-  keep `Dockerfile`, scripts, and notebook imports simple. The PoxekBook fork
-  may revisit this; GaRAG MVP will not.
+  keep `Dockerfile`, scripts, and notebook imports simple.
 - **Do not raise the test coverage threshold above 60%** without first adding
   more retrieval mock-tests. `app/rag/embedder.py`, `retriever_dense.py`, and
   `retriever_sparse.py` are exercised by the integration notebooks rather than
@@ -254,7 +253,7 @@ touching the affected modules.**
 | `experiments/03_retrieval_tuning.ipynb` | retrieval pipeline summary |
 | `evaluation/reports/retrieval_report.md` | latest metrics table |
 | `docs/design.md` | NFR + architectural decisions |
-| `docs/roadmap_to_poxekbook.md` | what is intentionally left out of MVP |
+| `docs/roadmap.md` | what is intentionally left out of MVP |
 | `tests/test_*.py` | 56 unit tests, 60% coverage gate |
 
 ## Useful external paths (read-only)

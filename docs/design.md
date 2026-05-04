@@ -1,11 +1,10 @@
 # GaRAG design document
 
 > **Scope.** This file documents the architectural decisions behind **GaRAG**,
-> the MVP slice of the larger PoxekBook vision. It captures non-functional
+> the GaRAG MVP. It captures non-functional
 > requirements, the choice of models, the chunking strategy, and the legal
-> stance on each data source. The full long-term vision (4 RAG pipelines,
-> 7 experiments, fine-tuning) lives in the private `poxekbook` repo — see
-> [`roadmap_to_poxekbook.md`](./roadmap_to_poxekbook.md) for the delta.
+> stance on each data source. Future work that is intentionally outside the
+> MVP lives in [`roadmap.md`](./roadmap.md).
 
 ## 1. Context
 
@@ -83,8 +82,8 @@ recreates the Qdrant collection.
 
 These targets are intentionally loose. The point of the MVP is to prove the
 hybrid+rerank+structured-output pipeline runs end-to-end and clears the
-GigaSchool grading criteria — not to out-benchmark open-source systems. PoxekBook
-increments 2–3 tighten each threshold independently.
+GigaSchool grading criteria — not to out-benchmark open-source systems. Future
+increments can tighten each threshold independently.
 
 ## 4. Architectural decisions
 
@@ -113,8 +112,8 @@ after rebuilding Qdrant with the qwen3 embedding model.
 - A grid search over `k1 ∈ [0.5, 2.0]` and `b ∈ [0.25, 1.0]` runs in seconds
   on the golden set.
 
-bge-m3 learned sparse is a PoxekBook increment 2 item and is explicitly not
-tried in MVP.
+bge-m3 learned sparse is a future comparison item and is explicitly not tried
+in MVP.
 
 The BM25 index includes searchable metadata in addition to chunk text:
 `chunk_id`, `doc_id`, source, and title. This keeps exact ATT&CK IDs such as
@@ -205,8 +204,8 @@ with the caveat below:
    generator and judge models agree on a checkpoint. Treat absolute numbers
    as upper bounds for those older runs and rely on per-category deltas +
    manual 10-sample review for qualitative signal.
-2. **Cross-model rerun** (GPT-4o or Claude as judge) is deferred to
-   PoxekBook increment 2 alongside the 10-LLM benchmark.
+2. **Cross-model rerun** (GPT-4o or Claude as judge) is deferred alongside the
+   10-LLM benchmark.
 
 Judge is called with `temperature=0.0`, `top_p=1.0`, `num_predict=300`,
 `seed=42` — deterministic single-pass scoring on the 50-item golden set.
@@ -224,7 +223,7 @@ Single strategy for MVP, full justification in
   see downstream
 
 Fixed-size, semantic, and per-entity alternatives are listed in the notebook
-and scheduled for comparison in PoxekBook E2.
+and scheduled for future comparison.
 
 ### 4.7 Vector DB: Qdrant in Docker Compose
 
@@ -246,18 +245,18 @@ Linux).
 
 ## 5. What GaRAG intentionally does **not** have
 
-- Multi-step GraphRAG (MITRE ATT&CK knowledge graph) — PoxekBook increment 3
-- Agentic RAG with `smolagents` tools — PoxekBook increment 3
-- Embedding benchmark (3 models) — PoxekBook E1
-- LLM benchmark (4–5 models × 3-stage filter) — PoxekBook E6
-- QLoRA / DPO fine-tuning — PoxekBook increment 3
-- 100–150 item extended golden set — PoxekBook increment 2
+- Multi-step GraphRAG (MITRE ATT&CK knowledge graph)
+- Agentic RAG with `smolagents` tools
+- Embedding benchmark (3 models)
+- LLM benchmark (4–5 models × 3-stage filter)
+- QLoRA / DPO fine-tuning
+- 100–150 item extended golden set
 - vLLM for throughput — only if the NFR benchmark shows the local LLM server is the bottleneck
 
 ## 6. References in this repository
 
 - `README.md` — quickstart + academic disclaimer
-- `docs/roadmap_to_poxekbook.md` — everything listed in §5, with targets
+- `docs/roadmap.md` — everything listed in §5, with targets
 - `app/schemas.py` — `Document`, `Chunk`, (d9) `Citation`, `QueryRequest`,
   `QueryResponse`
 - `scripts/parse_sources.py` — corpus unification entry point

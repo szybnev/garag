@@ -2,7 +2,7 @@
 
 Ran the full `QueryPipeline` over 50 queries from `data/golden/golden_set_v1.jsonl`. Generator: `qwen3.5:35b`. Judge: `qwen3.5:35b`.
 
-> **Self-bias caveat.** This report uses `qwen3.5:35b` as both generator and judge, which is known to inflate faithfulness by 5-15% vs a cross-model judge. Treat the absolute numbers as upper bounds; rely on per-category deltas and the manual 10-sample review for qualitative signal. A cross-model rerun (e.g. GPT-4o or Claude as judge) is deferred to PoxekBook increment 2.
+> **Self-bias caveat.** This report uses `qwen3.5:35b` as both generator and judge, which is known to inflate faithfulness by 5-15% vs a cross-model judge. Treat the absolute numbers as upper bounds; rely on per-category deltas and the manual 10-sample review for qualitative signal. A cross-model rerun (e.g. GPT-4o or Claude as judge) is deferred.
 
 ## Overall metrics
 

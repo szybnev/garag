@@ -6,7 +6,7 @@ having to reconstruct project context from `CLAUDE.md`.
 
 ## Project Context
 
-**GaRAG** is the academic MVP slice of a larger PoxekBook vision, submitted as the
+**GaRAG** is an academic MVP submitted as the
 final project for the **GigaSchool LLM-Engineer course (track A)**.
 
 It is a hybrid retrieval-augmented generation system over a cybersecurity corpus:
@@ -18,8 +18,7 @@ must stay intact in any rewrite.
 
 The full development plan lives at
 `~/kurs/gigaschool/docs/plans/radiant-questing-sutton.md`. It is the source of
-truth for the d1-d15 breakdown, NFR thresholds, and the boundary between GaRAG
-and the private PoxekBook continuation.
+truth for the d1-d15 breakdown, NFR thresholds, and the current GaRAG scope.
 
 ## Current Snapshot
 
@@ -28,7 +27,6 @@ and the private PoxekBook continuation.
 | Plan day completed | d10 runtime MVP |
 | Target release | `v0.1.0-garag` on 2026-04-24 |
 | Open public repo | https://github.com/szybnev/garag |
-| Private continuation | https://github.com/szybnev/poxekbook |
 | bd issue tracker | local `bd`; run `bd ready` / inspect `.beads/issues.jsonl` |
 | Test suite | 113 tests passing, coverage 82.30% (60% threshold) |
 | Local corpus | 2,544 documents, 3,900 chunks, 3,900 Qdrant points |
