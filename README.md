@@ -6,6 +6,8 @@ MVP for the **GigaSchool LLM-Engineer** final project (track A).
 
 > **Disclaimer.** GaRAG is an **academic project** built as the final assignment for the GigaSchool LLM-Engineer course. It is **not production-ready** and makes no claim of being so. Do not use it in real security operations, do not rely on its output for incident response or vulnerability assessment, and treat every generated answer as educational material that must be independently verified against the cited primary sources. Security scanning (`garak`) and Granite Guardian guardrails are included as learning exercises, not as hardened defence in depth.
 
+<img width="1909" height="1086" alt="image" src="https://github.com/user-attachments/assets/6570abf4-1fb7-4bcc-8524-15919788edc9" />
+
 ## Status
 
 Runtime MVP is implemented: hybrid retrieval, reranking, generation, FastAPI,
