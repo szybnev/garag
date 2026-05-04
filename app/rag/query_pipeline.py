@@ -32,7 +32,7 @@ class QueryPipeline:
         generator: Generator,
         *,
         candidate_k: int = 20,
-        top_k: int = 5,
+        top_k: int = 12,
     ) -> None:
         self.retriever = retriever
         self.generator = generator

@@ -53,7 +53,7 @@ cleared with 11–16 п.п. headroom. The weak category is **tool_usage** (Recal
 | Embedder | `text-embedding-qwen3-embedding-0.6b` via LM Studio OpenAI-compatible `/v1/embeddings`, dim 1024 |
 | Sparse | `rank_bm25.BM25Okapi`, **tuned** `k1=0.8, b=0.5` + nltk english stopwords |
 | Fusion | alpha-weighted min-max, **tuned** `alpha=0.3` (RRF k=60 also implemented) |
-| Reranker | `BAAI/bge-reranker-v2-m3` cross-encoder, top-20 → top-5 |
+| Reranker | `BAAI/bge-reranker-v2-m3` cross-encoder, top-20 → top-12 |
 | Generator (runtime) | `ibm/granite-4-h-tiny` via LM Studio OpenAI-compatible `/v1/chat/completions` |
 | LLM-as-judge | `qwen3.5:35b`; older same-checkpoint evals carry the d13 self-bias caveat |
 | Structured output | `_GeneratedResponse` JSON schema; OpenAI-compatible `response_format` for LM Studio |
@@ -114,7 +114,7 @@ bd sync                                          # MUST run before git push
                   │ DenseRetriever          │  qwen3 embedding + Qdrant query_points
                   │ SparseRetriever         │  rank_bm25 pickle
                   │ alpha-weighted fusion   │  alpha=0.3
-                  │ Reranker (bge-rer-v2)   │  cross-encoder, top-20→top-5
+                  │ Reranker (bge-rer-v2)   │  cross-encoder, top-20→top-12
                   └──────────┬──────────────┘
                              │
                   ┌──────────▼──────────────┐

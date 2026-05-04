@@ -20,6 +20,7 @@ services:
       RERANKER_MODEL: BAAI/bge-reranker-v2-m3
       FUSION_METHOD: alpha
       FUSION_ALPHA: "0.3"
+      RERANK_TOP_K: "12"
       GEN_TEMPERATURE: "0.4"
       GEN_TOP_P: "1.0"
       GEN_NUM_PREDICT: "800"

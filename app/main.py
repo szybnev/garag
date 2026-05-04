@@ -192,7 +192,13 @@ def _build_gradio_app(app: FastAPI) -> gr.Blocks:
             interactive=False,
         )
         question = gr.Textbox(label="Question", lines=3)
-        top_k = gr.Slider(label="Top K", minimum=1, maximum=20, value=5, step=1)
+        top_k = gr.Slider(
+            label="Top K",
+            minimum=1,
+            maximum=20,
+            value=settings.rerank_top_k,
+            step=1,
+        )
         submit = gr.Button("Ask")
         answer = gr.Textbox(label="Answer", lines=8)
         sources = gr.Textbox(label="Sources", lines=8)

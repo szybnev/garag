@@ -128,7 +128,7 @@ language chunk body is short.
 
 ### 4.3 Reranker: `BAAI/bge-reranker-v2-m3`
 
-Cross-encoder reranker on top-20 → top-5. It remains the tuned reranker for
+Cross-encoder reranker on top-20 → top-12. It remains the tuned reranker for
 the MVP even though the dense embedder now comes from LM Studio. The
 with/without comparison lands in `experiments/03_retrieval_tuning.ipynb` on d7.
 

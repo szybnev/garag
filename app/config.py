@@ -58,7 +58,7 @@ class Settings(BaseSettings):
 
     # Retrieval
     retrieve_top_k: int = 20
-    rerank_top_k: int = 5
+    rerank_top_k: int = 12
 
     # Generation — tuned via `scripts/tune_gen_params.py` on 20 golden queries
     # (36-config grid; winner = first fmt=1.0 config after rejecting num_predict=400

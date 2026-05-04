@@ -186,7 +186,7 @@ def test_citation_is_frozen() -> None:
 
 def test_query_request_minimum() -> None:
     req = QueryRequest(query="What is T1059?")
-    assert req.top_k == 5
+    assert req.top_k == 12
 
 
 def test_query_request_top_k_bounds() -> None:

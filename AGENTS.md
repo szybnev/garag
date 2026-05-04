@@ -127,7 +127,7 @@ Never stop with local-only completed work. If push fails, resolve and retry.
 | Embedder | `text-embedding-qwen3-embedding-0.6b` via LM Studio OpenAI-compatible `/v1/embeddings`, dim 1024 |
 | Sparse | `rank_bm25.BM25Okapi`, tuned `k1=0.8, b=0.5` + NLTK english stopwords; searchable text includes chunk/doc IDs, source, title, and chunk text |
 | Fusion | alpha-weighted min-max, tuned `alpha=0.3`; RRF k=60 also exists |
-| Reranker | `BAAI/bge-reranker-v2-m3`, cross-encoder, top-20 to top-5 |
+| Reranker | `BAAI/bge-reranker-v2-m3`, cross-encoder, top-20 to top-12 |
 | Generator | `ibm/granite-4-h-tiny` via LM Studio OpenAI-compatible `/v1/chat/completions` |
 | LLM-as-judge | `qwen3.5:35b`; older same-checkpoint evals carry the d13 self-bias caveat |
 | Structured output | `_GeneratedResponse` JSON schema; OpenAI-compatible `response_format` for LM Studio |
@@ -177,7 +177,7 @@ POST /query (FastAPI, QueryRequest)
      -> DenseRetriever: qwen3 embedding + Qdrant query_points
      -> SparseRetriever: rank_bm25 pickle
      -> alpha-weighted fusion, alpha=0.3
-     -> Reranker: bge-reranker-v2-m3, top-20 to top-5
+     -> Reranker: bge-reranker-v2-m3, top-20 to top-12
   -> Generator in app/rag/generator.py
      -> ibm/granite-4-h-tiny via LM Studio /v1/chat/completions
      -> QueryResponse with answer, citations, confidence
