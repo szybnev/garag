@@ -10,6 +10,19 @@ uv run python -m scripts.symphony path/to/WORKFLOW.md
 
 If the workflow path is omitted, Symphony reads `./WORKFLOW.md`.
 
+For local manual runs, the convenience wrapper checks the workflow file, `LINEAR_API_KEY`, and
+`codex` before starting:
+
+```bash
+scripts/run_symphony.sh path/to/WORKFLOW.md
+```
+
+Direct file execution is also supported:
+
+```bash
+uv run scripts/symphony.py path/to/WORKFLOW.md
+```
+
 ## Implemented Scope
 
 - `WORKFLOW.md` loader with YAML front matter and strict prompt rendering.

@@ -5,7 +5,11 @@ from __future__ import annotations
 import argparse
 import asyncio
 import logging
+import sys
 from pathlib import Path
+
+if __package__ is None or __package__ == "":
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.symphony.config import load_service_config, validate_dispatch_config
 from app.symphony.orchestrator import SymphonyOrchestrator
