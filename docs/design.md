@@ -132,10 +132,10 @@ Cross-encoder reranker on top-20 → top-5. It remains the tuned reranker for
 the MVP even though the dense embedder now comes from LM Studio. The
 with/without comparison lands in `experiments/03_retrieval_tuning.ipynb` on d7.
 
-### 4.4 Generator: qwen 35B family via local runtime
+### 4.4 Generator: Granite 8B via local runtime
 
-Single LLM family for MVP generation. Runtime defaults to
-`qwen/qwen3.6-35b-a3b` served by LM Studio's OpenAI-compatible
+Runtime defaults to
+`ibm/granite-3.2-8b` served by LM Studio's OpenAI-compatible
 `/v1/chat/completions` endpoint. The native Ollama `/api/chat` path is still
 implemented as a fallback provider because earlier generator evaluation used
 `qwen3.5:35b` through Ollama.
@@ -200,7 +200,7 @@ Raw grid results and per-config breakdown live in
 Originally planned as a separate (larger) model than the generator to reduce
 the "grading your own homework" bias. Generation evaluation originally used
 `qwen3.5:35b` for both generation and judging; the runtime generator now
-defaults to `qwen/qwen3.6-35b-a3b` through LM Studio, while the judge remains
+defaults to `ibm/granite-3.2-8b` through LM Studio, while the judge remains
 the Ollama-hosted `qwen3.5:35b` fallback model. Treat older generation reports
 with the caveat below:
 

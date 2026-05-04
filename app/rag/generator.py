@@ -1,8 +1,8 @@
-"""LLM generator — qwen-family local LLM endpoints.
+"""LLM generator — local LLM endpoints.
 
 The retrieval pipeline returns a list of `ScoredChunk` candidates; this
 module turns them into a grounded `QueryResponse` (answer + citations +
-self-reported confidence) by calling a qwen model through either native Ollama
+self-reported confidence) by calling a local model through either native Ollama
 `/api/chat` or an OpenAI-compatible local server such as LM Studio.
 
 ## Why native `/api/chat` instead of the OpenAI-compatible endpoint

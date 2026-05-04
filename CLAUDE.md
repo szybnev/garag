@@ -54,7 +54,7 @@ cleared with 11–16 п.п. headroom. The weak category is **tool_usage** (Recal
 | Sparse | `rank_bm25.BM25Okapi`, **tuned** `k1=0.8, b=0.5` + nltk english stopwords |
 | Fusion | alpha-weighted min-max, **tuned** `alpha=0.3` (RRF k=60 also implemented) |
 | Reranker | `BAAI/bge-reranker-v2-m3` cross-encoder, top-20 → top-5 |
-| Generator (runtime) | `qwen/qwen3.6-35b-a3b` via LM Studio OpenAI-compatible `/v1/chat/completions` |
+| Generator (runtime) | `ibm/granite-3.2-8b` via LM Studio OpenAI-compatible `/v1/chat/completions` |
 | LLM-as-judge | `qwen3.5:35b`; older same-checkpoint evals carry the d13 self-bias caveat |
 | Structured output | `_GeneratedResponse` JSON schema; OpenAI-compatible `response_format` for LM Studio |
 | Web layer (d10 runtime MVP) | FastAPI `/health` `/query` `/metrics`, Gradio mounted at `/gradio`, Docker Compose |
@@ -119,7 +119,7 @@ bd sync                                          # MUST run before git push
                              │
                   ┌──────────▼──────────────┐
                   │   Generator (d9)        │  app/rag/generator.py
-                  │ qwen/qwen3.6-35b-a3b   │  LM Studio /v1/chat/completions
+                  │ ibm/granite-3.2-8b    │  LM Studio /v1/chat/completions
                   │   format=QueryResponse  │  structured output
                   └──────────┬──────────────┘
                              │

@@ -28,13 +28,13 @@ query
                       [reranker bge-reranker-v2-m3]
                                       │
                                       ▼
-        [generator qwen/qwen3.6-35b-a3b via LM Studio]
+        [generator ibm/granite-3.2-8b via LM Studio]
                                       │
                                       ▼
         QueryResponse {answer, citations[], confidence, used_chunks[], latency_ms}
 ```
 
-Full design rationale — NFR table with targets, choice of local qwen3-family models/`RecursiveChunker`, HackerOne metadata-only stance, and the explicit list of things GaRAG does not attempt — lives in [`docs/design.md`](./docs/design.md).
+Full design rationale — NFR table with targets, choice of local models/`RecursiveChunker`, HackerOne metadata-only stance, and the explicit list of things GaRAG does not attempt — lives in [`docs/design.md`](./docs/design.md).
 
 ## Stack
 
@@ -43,7 +43,7 @@ Full design rationale — NFR table with targets, choice of local qwen3-family m
 - **Sparse:** `rank_bm25` (k1/b tuned per corpus; searchable text includes
   `chunk_id`, `doc_id`, source, title, and chunk text)
 - **Reranker:** `BAAI/bge-reranker-v2-m3` cross-encoder
-- **LLM:** `qwen/qwen3.6-35b-a3b` via LM Studio OpenAI-compatible API
+- **LLM:** `ibm/granite-3.2-8b` via LM Studio OpenAI-compatible API
 - **LLM-as-judge:** `qwen3.5:35b` via Ollama fallback path
 - **API:** FastAPI + Pydantic structured output (`/health`, `/query`, `/metrics`)
 - **UI:** Gradio mounted at `/gradio`
@@ -54,7 +54,7 @@ Full design rationale — NFR table with targets, choice of local qwen3-family m
 ## Quickstart
 
 Prerequisites: Docker, Docker Compose, and LM Studio serving
-`qwen/qwen3.6-35b-a3b` plus `text-embedding-qwen3-embedding-0.6b` on
+`ibm/granite-3.2-8b` plus `text-embedding-qwen3-embedding-0.6b` on
 `http://localhost:1234/v1`.
 
 For the Docker app container, LM Studio must accept connections from the Docker

@@ -35,7 +35,7 @@ class Settings(BaseSettings):
 
     # OpenAI-compatible local server (LM Studio)
     openai_base_url: str = "http://localhost:1234/v1"
-    openai_model: str = "qwen/qwen3.6-35b-a3b"
+    openai_model: str = "ibm/granite-3.2-8b"
 
     # Embedding / reranker
     embedding_provider: Literal["flagembedding", "openai_compat"] = "openai_compat"
