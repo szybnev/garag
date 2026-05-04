@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -18,24 +19,27 @@ DEFAULT_REPORT_PREFIX = "security/garak/reports/garag"
 def build_generator_options(api_url: str, *, top_k: int, timeout_s: int) -> dict[str, Any]:
     """Build garak REST generator options for FastAPI `POST /query`."""
     return {
-        "uri": f"{api_url.rstrip('/')}/query",
-        "method": "post",
-        "headers": {"Content-Type": "application/json"},
-        "req_template_json_object": {"query": "$INPUT", "top_k": top_k},
-        "response_json": True,
-        "response_json_field": "$.answer",
-        "request_timeout": timeout_s,
-        "skip_codes": [400, 502],
+        "rest": {
+            "uri": f"{api_url.rstrip('/')}/query",
+            "method": "post",
+            "headers": {"Content-Type": "application/json"},
+            "req_template_json_object": {"query": "$INPUT", "top_k": top_k},
+            "response_json": True,
+            "response_json_field": "$.answer",
+            "request_timeout": timeout_s,
+            "skip_codes": [400, 422, 502],
+        }
     }
 
 
 def build_command(
     *,
+    api_url: str,
     generator_options_path: Path,
     probes: str,
     generations: int,
     seed: int,
-    report_prefix: str,
+    garak_report_prefix: str,
 ) -> list[str]:
     """Build the garak CLI command."""
     return [
@@ -44,6 +48,8 @@ def build_command(
         "garak",
         "--target_type",
         "rest",
+        "--target_name",
+        f"{api_url.rstrip('/')}/query",
         "-G",
         str(generator_options_path),
         "--probes",
@@ -53,7 +59,7 @@ def build_command(
         "--seed",
         str(seed),
         "--report_prefix",
-        report_prefix,
+        garak_report_prefix,
         "--skip_unknown",
     ]
 
@@ -72,7 +78,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
-    Path(args.report_prefix).parent.mkdir(parents=True, exist_ok=True)
+    report_prefix_path = Path(args.report_prefix)
+    report_prefix_path.parent.mkdir(parents=True, exist_ok=True)
+    garak_report_prefix = report_prefix_path.name
     generator_options = build_generator_options(
         args.api_url,
         top_k=args.top_k,
@@ -83,13 +91,22 @@ def main(argv: list[str] | None = None) -> int:
         tmp.flush()
         command = build_command(
             generator_options_path=Path(tmp.name),
+            api_url=args.api_url,
             probes=args.probes,
             generations=args.generations,
             seed=args.seed,
-            report_prefix=args.report_prefix,
+            garak_report_prefix=garak_report_prefix,
         )
         completed = subprocess.run(command, check=False)  # noqa: S603
+    _copy_garak_reports(garak_report_prefix, report_prefix_path)
     return completed.returncode
+
+
+def _copy_garak_reports(garak_report_prefix: str, report_prefix_path: Path) -> None:
+    garak_report_dir = Path.home() / ".local/share/garak/garak_runs"
+    for source in garak_report_dir.glob(f"{garak_report_prefix}.*"):
+        target = report_prefix_path.parent / source.name
+        shutil.copy2(source, target)
 
 
 if __name__ == "__main__":

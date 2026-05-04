@@ -19,7 +19,7 @@ from app.schemas import QueryResponse
 
 
 def _guardian_response(content: str) -> dict[str, Any]:
-    return {"choices": [{"message": {"content": content}}]}
+    return {"choices": [{"text": content}]}
 
 
 def _chunk() -> ScoredChunk:
@@ -51,7 +51,7 @@ def test_scan_input_accepts_no_verdicts_and_uses_openai_payload() -> None:
 
     assert len(seen) == 2
     assert seen[0]["model"] == "granite-guardian-test"
-    assert seen[0]["messages"][0]["role"] == "user"
+    assert seen[0]["prompt"].endswith("<|start_of_role|>assistant<|end_of_role|>")
     assert seen[0]["temperature"] == 0
     assert seen[0]["max_tokens"] == 20
 
@@ -74,7 +74,7 @@ def test_scan_output_checks_harm_and_groundedness_with_context() -> None:
 
     def handler(request: httpx.Request) -> httpx.Response:
         payload = json.loads(request.content)
-        seen.append(payload["messages"][0]["content"])
+        seen.append(payload["prompt"])
         return httpx.Response(200, json=_guardian_response("No"))
 
     guardrails = GraniteGuardianGuardrails(
@@ -91,7 +91,7 @@ def test_scan_output_checks_harm_and_groundedness_with_context() -> None:
 
     assert len(seen) == 2
     assert "Command and Scripting Interpreter" in seen[1]
-    assert "groundedness" in seen[1]
+    assert "not grounded or faithful" in seen[1]
 
 
 def test_scan_output_blocks_yes_verdict() -> None:
