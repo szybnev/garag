@@ -52,7 +52,6 @@ docker run -d --name "${CONTAINER_NAME}" \
   --max-model-len "${MAX_MODEL_LEN}" \
   --max-num-seqs "${MAX_NUM_SEQS}" \
   --max-num-batched-tokens "${MAX_NUM_BATCHED_TOKENS}" \
-  --enforce-eager \
   --tool-call-parser glm47 \
   --enable-auto-tool-choice
 

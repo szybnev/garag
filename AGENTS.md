@@ -237,7 +237,9 @@ Reference paths:
   `scripts/run_vllm_glm47_flash.sh`. The working single-GPU setup uses
   `vllm/vllm-openai:nightly`, `bitsandbytes` quantization, `fp8` KV cache,
   `max_model_len=4096`, and `VLLM_MLA_DISABLE=1`. BF16 and online
-  `fp8_per_tensor` did not fit into one 32 GB RTX 5090. Without
+  `fp8_per_tensor` / `fp8_per_block` did not fit into one 32 GB RTX 5090.
+  Prefer the default hybrid CUDA graph mode; `--enforce-eager` works but was
+  slower in structured JSON checks. Without
   `VLLM_MLA_DISABLE=1`, the first chat request can crash in the Triton MLA
   decode kernel with a shared-memory `OutOfResources` error. Do not add
   `--reasoning-parser glm45` for the GaRAG OpenAI-compatible path unless the
