@@ -71,6 +71,7 @@ def _make_generator(handler: httpx.MockTransport) -> Generator:
     return Generator(
         base_url="http://ollama.test:11434",
         model="qwen3.5:test",
+        provider="ollama",
         client=httpx.Client(transport=handler),
     )
 

@@ -24,13 +24,24 @@ class Settings(BaseSettings):
     qdrant_url: str = "http://localhost:6380"
     qdrant_collection: str = "garag_v1"
 
+    # LLM provider
+    llm_provider: Literal["ollama", "openai_compat"] = "openai_compat"
+
     # Ollama (external container on the host)
     ollama_url: str = "http://host.docker.internal:11434"
     ollama_model: str = "qwen3.5:35b"
     ollama_judge_model: str = "qwen3.5:35b"
     ollama_keep_alive: str = "30s"
 
+    # OpenAI-compatible local server (LM Studio)
+    openai_base_url: str = "http://localhost:1234/v1"
+    openai_model: str = "qwen/qwen3.6-35b-a3b"
+
     # Embedding / reranker
+    embedding_provider: Literal["flagembedding", "openai_compat"] = "openai_compat"
+    openai_embedding_base_url: str = "http://localhost:1234/v1"
+    openai_embedding_model: str = "text-embedding-qwen3-embedding-0.6b"
+    embedding_dim: int = 1024
     bge_m3_model: str = "BAAI/bge-m3"
     reranker_model: str = "BAAI/bge-reranker-v2-m3"
 

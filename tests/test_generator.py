@@ -62,6 +62,7 @@ def _make_generator(
     return Generator(
         base_url="http://ollama.test:11434",
         model="qwen3.5:test",
+        provider="ollama",
         client=client,
         **overrides,
     )
@@ -116,6 +117,45 @@ def test_generate_payload_has_think_false_and_format_schema() -> None:
     assert payload["options"]["seed"] == gen.seed
 
 
+def test_generate_openai_compat_payload_and_response() -> None:
+    payloads: list[dict[str, Any]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        payloads.append(json.loads(request.content))
+        return httpx.Response(
+            200,
+            json={
+                "choices": [
+                    {
+                        "message": {
+                            "role": "assistant",
+                            "content": _valid_response_json(),
+                        }
+                    }
+                ]
+            },
+        )
+
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    gen = Generator(
+        base_url="http://lmstudio.test:1234/v1",
+        model="qwen/qwen3.6-35b-a3b",
+        provider="openai_compat",
+        client=client,
+    )
+    result = gen.generate("query", [_chunk("mitre_attack:T0::0")])
+
+    assert result.confidence == pytest.approx(0.9)
+    payload = payloads[0]
+    assert payload["model"] == "qwen/qwen3.6-35b-a3b"
+    assert payload["stream"] is False
+    assert payload["max_tokens"] == gen.num_predict
+    assert payload["response_format"]["type"] == "json_schema"
+    assert payload["response_format"]["json_schema"]["schema"] == (
+        _GeneratedResponse.model_json_schema()
+    )
+
+
 def test_generate_raises_on_http_error() -> None:
     def handler(_request: httpx.Request) -> httpx.Response:
         return httpx.Response(500, json={"error": "boom"})
@@ -130,7 +170,7 @@ def test_generate_raises_on_empty_content() -> None:
         return httpx.Response(200, json={"message": {"content": ""}})
 
     gen = _make_generator(httpx.MockTransport(handler))
-    with pytest.raises(GenerationError, match=r"empty message\.content"):
+    with pytest.raises(GenerationError, match="empty message content"):
         gen.generate("q", [_chunk("mitre_attack:T0::0")])
 
 

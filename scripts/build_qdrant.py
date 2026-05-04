@@ -1,7 +1,7 @@
 """Build the dense Qdrant index for GaRAG.
 
-Reads `data/processed/chunks.parquet`, encodes each chunk with bge-m3
-through `app.rag.embedder.DenseEmbedder`, and upserts into a fresh
+Reads `data/processed/chunks.parquet`, encodes each chunk with
+`app.rag.embedder.DenseEmbedder`, and upserts into a fresh
 Qdrant collection `garag_v1` with the HNSW parameters fixed by
 `docs/design.md §4.7`.
 
@@ -20,7 +20,7 @@ import pandas as pd
 from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, HnswConfigDiff, PointStruct, VectorParams
 
-from app.rag.embedder import DEFAULT_DIM, DenseEmbedder
+from app.rag.embedder import DenseEmbedder
 
 CHUNKS_FILE = Path(__file__).resolve().parents[1] / "data" / "processed" / "chunks.parquet"
 
@@ -29,7 +29,7 @@ DEFAULT_COLLECTION = "garag_v1"
 DEFAULT_BATCH = 64
 
 
-def _create_collection(client: QdrantClient, name: str, *, recreate: bool) -> None:
+def _create_collection(client: QdrantClient, name: str, *, recreate: bool, dim: int) -> None:
     existing = {c.name for c in client.get_collections().collections}
     if name in existing:
         if recreate:
@@ -39,10 +39,10 @@ def _create_collection(client: QdrantClient, name: str, *, recreate: bool) -> No
             print(f"[collection] {name} exists, appending")
             return
 
-    print(f"[collection] creating {name} (size={DEFAULT_DIM}, distance=COSINE, HNSW m=16 ef_c=200)")
+    print(f"[collection] creating {name} (size={dim}, distance=COSINE, HNSW m=16 ef_c=200)")
     client.create_collection(
         collection_name=name,
-        vectors_config=VectorParams(size=DEFAULT_DIM, distance=Distance.COSINE),
+        vectors_config=VectorParams(size=dim, distance=Distance.COSINE),
         hnsw_config=HnswConfigDiff(
             m=16,
             ef_construct=200,
@@ -85,11 +85,14 @@ def main() -> None:
     df = pd.read_parquet(args.input)
     print(f"[load] {len(df)} chunks from {args.input}")
 
-    client = QdrantClient(url=args.qdrant_url, timeout=60)
-    _create_collection(client, args.collection, recreate=args.recreate)
-
     embedder = DenseEmbedder()
-    print(f"[embedder] {embedder.model_name}, dim={embedder.dim}, batch={args.batch_size}")
+    print(
+        f"[embedder] provider={embedder.provider}, model={embedder.model_name}, "
+        f"dim={embedder.dim}, batch={args.batch_size}"
+    )
+
+    client = QdrantClient(url=args.qdrant_url, timeout=60)
+    _create_collection(client, args.collection, recreate=args.recreate, dim=embedder.dim)
 
     encode_seconds = 0.0
     upsert_seconds = 0.0
@@ -104,8 +107,8 @@ def main() -> None:
         vecs = embedder.encode(texts, batch_size=args.batch_size)
         encode_seconds += time.perf_counter() - t0
 
-        if vecs.shape[1] != DEFAULT_DIM:
-            msg = f"unexpected embedding dim {vecs.shape[1]}, expected {DEFAULT_DIM}"
+        if vecs.shape[1] != embedder.dim:
+            msg = f"unexpected embedding dim {vecs.shape[1]}, expected {embedder.dim}"
             raise RuntimeError(msg)
 
         points = [

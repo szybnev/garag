@@ -21,27 +21,27 @@ Target release: **v0.1.0-garag** — 2026-04-24.
 query
   │
   ▼
-[dense (bge-m3) + sparse (BM25)] → [alpha fusion, α=0.3]
+[dense (qwen3 embedding) + sparse (BM25)] → [alpha fusion, α=0.3]
                                       │
                                       ▼
                       [reranker bge-reranker-v2-m3]
                                       │
                                       ▼
-                 [generator qwen3.5:35b via Ollama]
+        [generator qwen/qwen3.6-35b-a3b via LM Studio]
                                       │
                                       ▼
         QueryResponse {answer, citations[], confidence, used_chunks[], latency_ms}
 ```
 
-Full design rationale — NFR table with targets, choice of `bge-m3`/`qwen3.5:35b`/`RecursiveChunker`, HackerOne metadata-only stance, and the explicit list of things GaRAG does not attempt — lives in [`docs/design.md`](./docs/design.md).
+Full design rationale — NFR table with targets, choice of local qwen3-family models/`RecursiveChunker`, HackerOne metadata-only stance, and the explicit list of things GaRAG does not attempt — lives in [`docs/design.md`](./docs/design.md).
 
 ## Stack
 
 - **Vector DB:** Qdrant (HNSW)
-- **Embedding:** `BAAI/bge-m3` (dense)
+- **Embedding:** `text-embedding-qwen3-embedding-0.6b` via LM Studio OpenAI-compatible API
 - **Sparse:** `rank_bm25` (k1/b tuned per corpus)
 - **Reranker:** `BAAI/bge-reranker-v2-m3` cross-encoder
-- **LLM:** `qwen3.5:35b` via Ollama (`/api/chat`, `think=false`)
+- **LLM:** `qwen/qwen3.6-35b-a3b` via LM Studio OpenAI-compatible API
 - **LLM-as-judge:** `qwen3.5:35b` (same model — self-bias caveat noted for d13)
 - **API:** FastAPI + Pydantic structured output (`/health`, `/query`, `/metrics`)
 - **UI:** Gradio mounted at `/gradio`
@@ -51,7 +51,14 @@ Full design rationale — NFR table with targets, choice of `bge-m3`/`qwen3.5:35
 
 ## Quickstart
 
-Prerequisites: Docker, Docker Compose, an existing `ollama` container on the host with `qwen3.5:35b` pulled.
+Prerequisites: Docker, Docker Compose, and LM Studio serving
+`qwen/qwen3.6-35b-a3b` plus `text-embedding-qwen3-embedding-0.6b` on
+`http://localhost:1234/v1`.
+
+For the Docker app container, LM Studio must accept connections from the Docker
+host gateway (`http://host.docker.internal:1234/v1`). If LM Studio is bound to
+localhost only, local scripts work but `docker compose` runtime queries cannot
+reach `/v1/chat/completions` or `/v1/embeddings`.
 
 ```bash
 # 1. Install dependencies

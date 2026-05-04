@@ -1,4 +1,4 @@
-"""Dense retriever — bge-m3 + Qdrant `garag_v1`."""
+"""Dense retriever — configured DenseEmbedder + Qdrant `garag_v1`."""
 
 from __future__ import annotations
 

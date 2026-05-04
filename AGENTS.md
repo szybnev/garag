@@ -123,13 +123,13 @@ Never stop with local-only completed work. If push fails, resolve and retry.
 |---|---|
 | Python | 3.12, `uv`, ruff, ty |
 | Vector DB | Qdrant `garag_v1`, HNSW `m=16, ef_construct=200`, dim 1024, cosine |
-| Embedder | `BAAI/bge-m3`, dense head only, normalized, fp16 |
+| Embedder | `text-embedding-qwen3-embedding-0.6b` via LM Studio OpenAI-compatible `/v1/embeddings`, dim 1024 |
 | Sparse | `rank_bm25.BM25Okapi`, tuned `k1=0.8, b=0.5` + NLTK english stopwords |
 | Fusion | alpha-weighted min-max, tuned `alpha=0.3`; RRF k=60 also exists |
 | Reranker | `BAAI/bge-reranker-v2-m3`, cross-encoder, top-20 to top-5 |
-| Generator | `qwen3.5:35b` via Ollama `/api/chat` with `think=false` |
+| Generator | `qwen/qwen3.6-35b-a3b` via LM Studio OpenAI-compatible `/v1/chat/completions` |
 | LLM-as-judge | `qwen3.5:35b`; self-bias caveat acknowledged for d13 |
-| Structured output | `app.schemas.QueryResponse.model_json_schema()` to Ollama `format` |
+| Structured output | `_GeneratedResponse` JSON schema; OpenAI-compatible `response_format` for LM Studio |
 | Web layer | FastAPI `/health` `/query` `/metrics`, Gradio mounted at `/gradio`, Docker Compose |
 | Observability | Prometheus + Grafana, anonymous viewer |
 | Security | `garak` probes + LLM Guard input/output guardrails planned |
@@ -178,7 +178,7 @@ POST /query (FastAPI, QueryRequest)
      -> alpha-weighted fusion, alpha=0.3
      -> Reranker: bge-reranker-v2-m3, top-20 to top-5
   -> Generator in app/rag/generator.py
-     -> qwen3.5:35b via Ollama /api/chat
+     -> qwen/qwen3.6-35b-a3b via LM Studio /v1/chat/completions
      -> QueryResponse with answer, citations, confidence
 ```
 
@@ -189,16 +189,16 @@ Reference paths:
 | `app/schemas.py` | `Document`, `Chunk`, `Citation`, `QueryRequest`, `QueryResponse` |
 | `app/config.py` | `pydantic-settings` runtime config |
 | `app/rag/pipeline.py` | `HybridRetriever` orchestrator |
-| `app/rag/embedder.py` | bge-m3 wrapper |
+| `app/rag/embedder.py` | LM Studio embedding wrapper with FlagEmbedding fallback |
 | `app/rag/retriever_dense.py` | Qdrant `query_points` |
 | `app/rag/retriever_sparse.py` | BM25Okapi pickle loader |
 | `app/rag/fusion.py` | RRF and alpha-weighted fusion |
 
 ## Sharp Edges
 
-- **qwen3.5 thinking mode.** The OpenAI-compatible endpoint can return empty
-  `content` with the answer in `thinking`. Use native Ollama `/api/chat` with
-  `{"think": false}`.
+- **qwen3.5 thinking mode.** Native Ollama uses `/api/chat` with
+  `{"think": false}`. Runtime now defaults to LM Studio's OpenAI-compatible
+  `/v1/chat/completions`.
 - **Ollama structured output on MoE qwen3.5 is leaky.** The full nested
   `QueryResponse` schema caused missing `citations[].source`. The generator asks
   only for `chunk_id` and `quote`, then hydrates `source` and `url` from chunks.

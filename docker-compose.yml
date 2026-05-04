@@ -6,6 +6,13 @@ services:
     environment:
       QDRANT_URL: http://qdrant:6333
       QDRANT_COLLECTION: garag_v1
+      LLM_PROVIDER: openai_compat
+      OPENAI_BASE_URL: http://host.docker.internal:1234/v1
+      OPENAI_MODEL: qwen/qwen3.6-35b-a3b
+      EMBEDDING_PROVIDER: openai_compat
+      OPENAI_EMBEDDING_BASE_URL: http://host.docker.internal:1234/v1
+      OPENAI_EMBEDDING_MODEL: text-embedding-qwen3-embedding-0.6b
+      EMBEDDING_DIM: "1024"
       OLLAMA_URL: http://host.docker.internal:11434
       OLLAMA_MODEL: qwen3.5:35b
       OLLAMA_JUDGE_MODEL: qwen3.5:35b
@@ -28,6 +35,7 @@ services:
         condition: service_healthy
     volumes:
       - ./data/index:/app/data/index:ro
+      - ./data/processed:/app/data/processed:ro
       - hf_cache:/root/.cache/huggingface
     deploy:
       resources:

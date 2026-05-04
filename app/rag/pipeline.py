@@ -1,6 +1,6 @@
 """Hybrid retrieval orchestrator.
 
-Combines dense (bge-m3 + Qdrant) and sparse (BM25Okapi) retrievers via
+Combines dense (DenseEmbedder + Qdrant) and sparse (BM25Okapi) retrievers via
 RRF or alpha-weighted fusion. The reranker (d7) and the LLM generator
 (d9) plug in here as additional stages, but for d5 the orchestrator
 stops after fusion — it returns the top-k fused chunks ready for

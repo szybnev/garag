@@ -77,18 +77,21 @@ increments 2–3 tighten each threshold independently.
 
 ## 4. Architectural decisions
 
-### 4.1 Embedding: `BAAI/bge-m3`
+### 4.1 Embedding: `text-embedding-qwen3-embedding-0.6b`
 
 **Chosen because:**
-- One model serves both dense and potential sparse retrieval (we use dense
-  only for MVP; learned sparse is a PoxekBook E1 option).
-- 8 192-token context accommodates our 256-token chunks with room to spare.
-- Multilingual — lets us accept Russian-language queries against an English
-  corpus without an additional translation step.
-- Strong out-of-the-box retrieval scores on BEIR without fine-tuning.
+- It is served by the same LM Studio OpenAI-compatible runtime as the
+  generator, so the MVP does not need a second local model server.
+- The observed output dimension is 1024, matching the existing Qdrant
+  `garag_v1` vector size and keeping the dense index shape unchanged.
+- It keeps the stack in the qwen3-family requested for the runtime path while
+  preserving multilingual coverage for Russian queries over an English corpus.
+- It uses `/v1/embeddings`, so the app can reuse standard OpenAI-compatible
+  client semantics and mock that path in unit tests.
 
-Alternatives not picked for MVP: `nomic-embed-text-v2-moe`, `snowflake-arctic-embed2`.
-Both will be benchmarked head-to-head in PoxekBook E1.
+`BAAI/bge-m3` remains implemented as a FlagEmbedding fallback. The retrieval
+tuning table above was produced with the earlier bge-m3 dense index; after the
+qwen3 embedding switch, Qdrant must be rebuilt before runtime tests.
 
 ### 4.2 Sparse retrieval: `rank_bm25`, not bge-m3 learned sparse
 
@@ -104,15 +107,17 @@ tried in MVP.
 
 ### 4.3 Reranker: `BAAI/bge-reranker-v2-m3`
 
-Cross-encoder reranker on top-20 → top-5. Same family as the embedder, so
-they share tokenisation behaviour and language coverage. The with/without
-comparison lands in `experiments/03_retrieval_tuning.ipynb` on d7.
+Cross-encoder reranker on top-20 → top-5. It remains the tuned reranker for
+the MVP even though the dense embedder now comes from LM Studio. The
+with/without comparison lands in `experiments/03_retrieval_tuning.ipynb` on d7.
 
-### 4.4 Generator: `qwen3.5:35b` via Ollama
+### 4.4 Generator: qwen 35B family via local runtime
 
-Single LLM for MVP generation. Alternatives (4 B / 9 B / 27 B) are benchmarked
-in PoxekBook E6, not here. The 14 B variant is not in the local Ollama cache
-on the d9 host; we use 35 B MoE instead.
+Single LLM family for MVP generation. Runtime defaults to
+`qwen/qwen3.6-35b-a3b` served by LM Studio's OpenAI-compatible
+`/v1/chat/completions` endpoint. The native Ollama `/api/chat` path is still
+implemented as a fallback provider because earlier generator evaluation used
+`qwen3.5:35b` through Ollama.
 
 **Non-obvious wrinkles:**
 - qwen3.5 uses a thinking mode. Through the OpenAI-compatible endpoint the
@@ -210,12 +215,13 @@ HNSW with `m=16`, `ef_construct=200`, cosine distance, single collection
 shifted ports (`6380`, `6381`) so it can coexist with any default 6333
 installation on the host.
 
-### 4.8 Orchestration: app in Docker, Ollama outside
+### 4.8 Orchestration: app in Docker, LLM server outside
 
-The `ollama` container already runs on the host with `qwen3.5:35b` pulled.
-Re-bundling it inside `garag`'s compose file would duplicate ~30 GB of model
-weights. Instead, `app` reaches Ollama via
-`http://host.docker.internal:11434` with an explicit
+The LLM/embedding server runs outside `garag`'s compose file to avoid
+duplicating large model weights. Docker Compose points the app at LM Studio on
+`http://host.docker.internal:1234/v1`; local scripts default to
+`http://localhost:1234/v1`. The Ollama fallback provider reaches
+Ollama via `http://host.docker.internal:11434` with an explicit
 `extra_hosts: ["host.docker.internal:host-gateway"]` clause (required on
 Linux).
 
@@ -227,7 +233,7 @@ Linux).
 - LLM benchmark (4–5 models × 3-stage filter) — PoxekBook E6
 - QLoRA / DPO fine-tuning — PoxekBook increment 3
 - 100–150 item extended golden set — PoxekBook increment 2
-- vLLM for throughput — only if the NFR benchmark shows Ollama is the bottleneck
+- vLLM for throughput — only if the NFR benchmark shows the local LLM server is the bottleneck
 
 ## 6. References in this repository
 

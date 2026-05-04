@@ -50,13 +50,13 @@ cleared with 11–16 п.п. headroom. The weak category is **tool_usage** (Recal
 |---|---|
 | Python | 3.12, **uv** + ruff + ty (modern-python skill) |
 | Vector DB | Qdrant `garag_v1`, HNSW `m=16, ef_construct=200`, dim 1024, cosine |
-| Embedder | `BAAI/bge-m3` (dense head only), normalised, fp16 |
+| Embedder | `text-embedding-qwen3-embedding-0.6b` via LM Studio OpenAI-compatible `/v1/embeddings`, dim 1024 |
 | Sparse | `rank_bm25.BM25Okapi`, **tuned** `k1=0.8, b=0.5` + nltk english stopwords |
 | Fusion | alpha-weighted min-max, **tuned** `alpha=0.3` (RRF k=60 also implemented) |
 | Reranker | `BAAI/bge-reranker-v2-m3` cross-encoder, top-20 → top-5 |
-| Generator (d9) | `qwen3.5:35b` via Ollama `/api/chat` with `think=false` |
+| Generator (runtime) | `qwen/qwen3.6-35b-a3b` via LM Studio OpenAI-compatible `/v1/chat/completions` |
 | LLM-as-judge | `qwen3.5:35b` (same model — MoE 36B is the largest available locally; self-bias caveat acknowledged for d13) |
-| Structured output | `app.schemas.QueryResponse.model_json_schema()` → Ollama `format=...` |
+| Structured output | `_GeneratedResponse` JSON schema; OpenAI-compatible `response_format` for LM Studio |
 | Web layer (d10 runtime MVP) | FastAPI `/health` `/query` `/metrics`, Gradio mounted at `/gradio`, Docker Compose |
 | Observability (d11) | Prometheus + Grafana, anonymous viewer |
 | Security (d12) | `garak` probes + LLM Guard input/output guardrails planned |
@@ -119,7 +119,7 @@ bd sync                                          # MUST run before git push
                              │
                   ┌──────────▼──────────────┐
                   │   Generator (d9)        │  app/rag/generator.py
-                  │   qwen3.5:35b / Ollama  │  /api/chat, think=false
+                  │ qwen/qwen3.6-35b-a3b   │  LM Studio /v1/chat/completions
                   │   format=QueryResponse  │  structured output
                   └──────────┬──────────────┘
                              │
@@ -234,7 +234,7 @@ touching the affected modules.**
 | `app/schemas.py` | `Document`, `Chunk`, `Citation`, `QueryRequest`, `QueryResponse` |
 | `app/config.py` | `pydantic-settings` runtime config with tuned defaults |
 | `app/rag/pipeline.py` | `HybridRetriever` orchestrator |
-| `app/rag/embedder.py` | bge-m3 wrapper |
+| `app/rag/embedder.py` | LM Studio embedding wrapper with FlagEmbedding fallback |
 | `app/rag/retriever_dense.py` | Qdrant `query_points` |
 | `app/rag/retriever_sparse.py` | BM25Okapi pickle loader |
 | `app/rag/fusion.py` | RRF + alpha-weighted, with unit tests |

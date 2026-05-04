@@ -1,13 +1,13 @@
-"""LLM generator — qwen3.5 via native Ollama `/api/chat`.
+"""LLM generator — qwen-family local LLM endpoints.
 
 The retrieval pipeline returns a list of `ScoredChunk` candidates; this
 module turns them into a grounded `QueryResponse` (answer + citations +
-self-reported confidence) by calling qwen3.5 through the native Ollama
-`/api/chat` endpoint with structured output.
+self-reported confidence) by calling a qwen model through either native Ollama
+`/api/chat` or an OpenAI-compatible local server such as LM Studio.
 
 ## Why native `/api/chat` instead of the OpenAI-compatible endpoint
 
-qwen3.5 supports a "thinking" mode. The OpenAI-compatible endpoint in
+qwen reasoning models support a "thinking" mode. The OpenAI-compatible endpoint in
 Ollama can silently return an empty `content` field with the entire
 answer hidden inside `thinking`, which breaks any JSON parsing. The
 native `/api/chat` endpoint accepts a top-level `think: false` flag
@@ -177,17 +177,18 @@ def _hydrate_response(
 
 
 class GenerationError(RuntimeError):
-    """Raised when Ollama returns an unusable response."""
+    """Raised when the LLM backend returns an unusable response."""
 
 
 class Generator:
-    """qwen3.5 generator over the native Ollama `/api/chat` endpoint."""
+    """qwen-family generator over native Ollama or OpenAI-compatible endpoints."""
 
     def __init__(  # noqa: PLR0913
         self,
         *,
         base_url: str | None = None,
         model: str | None = None,
+        provider: str | None = None,
         temperature: float | None = None,
         top_p: float | None = None,
         num_predict: int | None = None,
@@ -196,8 +197,16 @@ class Generator:
         timeout: float = 300.0,
         client: httpx.Client | None = None,
     ) -> None:
-        self.base_url = (base_url or settings.ollama_url).rstrip("/")
-        self.model = model or settings.ollama_model
+        self.provider = provider or settings.llm_provider
+        if self.provider == "openai_compat":
+            self.base_url = (base_url or settings.openai_base_url).rstrip("/")
+            self.model = model or settings.openai_model
+        elif self.provider == "ollama":
+            self.base_url = (base_url or settings.ollama_url).rstrip("/")
+            self.model = model or settings.ollama_model
+        else:
+            msg = f"unsupported LLM provider: {self.provider}"
+            raise ValueError(msg)
         self.temperature = temperature if temperature is not None else settings.gen_temperature
         self.top_p = top_p if top_p is not None else settings.gen_top_p
         self.num_predict = num_predict if num_predict is not None else settings.gen_num_predict
@@ -224,7 +233,7 @@ class Generator:
     def __exit__(self, *_exc: object) -> None:
         self.close()
 
-    def _build_payload(self, query: str, chunks: list[ScoredChunk]) -> dict[str, Any]:
+    def _build_ollama_payload(self, query: str, chunks: list[ScoredChunk]) -> dict[str, Any]:
         return {
             "model": self.model,
             "messages": [
@@ -243,8 +252,30 @@ class Generator:
             },
         }
 
+    def _build_openai_payload(self, query: str, chunks: list[ScoredChunk]) -> dict[str, Any]:
+        return {
+            "model": self.model,
+            "messages": [
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": _build_user_message(query, chunks)},
+            ],
+            "stream": False,
+            "temperature": self.temperature,
+            "top_p": self.top_p,
+            "max_tokens": self.num_predict,
+            "seed": self.seed,
+            "response_format": {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "garag_generated_response",
+                    "strict": True,
+                    "schema": _GeneratedResponse.model_json_schema(),
+                },
+            },
+        }
+
     def generate(self, query: str, chunks: list[ScoredChunk]) -> QueryResponse:
-        """Call Ollama and parse the JSON response into `QueryResponse`.
+        """Call the configured LLM backend and parse JSON into `QueryResponse`.
 
         Raises `GenerationError` on HTTP failure or on JSON that cannot
         be validated against the schema. The caller is responsible for
@@ -253,31 +284,65 @@ class Generator:
         usually means the prompt needs fixing, not another attempt.
         """
         client = self._get_client()
-        payload = self._build_payload(query, chunks)
-        try:
-            resp = client.post(f"{self.base_url}/api/chat", json=payload)
-            resp.raise_for_status()
-        except httpx.HTTPError as exc:
-            raise GenerationError(f"Ollama /api/chat failed: {exc}") from exc
-
-        body = resp.json()
-        content = (body.get("message") or {}).get("content") or ""
+        if self.provider == "openai_compat":
+            content = self._call_openai_compat(client, query, chunks)
+        else:
+            content = self._call_ollama(client, query, chunks)
         if not content.strip():
             raise GenerationError(
-                "Ollama returned empty message.content — check that `think=false` "
-                f"is honored by the model (body keys: {sorted(body)})"
+                f"{self.provider} returned empty message content"
             )
         try:
             parsed = json.loads(content)
         except json.JSONDecodeError as exc:
             raise GenerationError(
-                f"Ollama response is not valid JSON despite format schema: {exc}\n"
+                f"{self.provider} response is not valid JSON despite schema prompt: {exc}\n"
                 f"content={content[:400]!r}"
             ) from exc
         try:
             generated = _GeneratedResponse.model_validate(parsed)
         except ValueError as exc:
             raise GenerationError(
-                f"Ollama JSON does not match _GeneratedResponse schema: {exc}\nparsed={parsed!r}"
+                f"{self.provider} JSON does not match _GeneratedResponse schema: "
+                f"{exc}\nparsed={parsed!r}"
             ) from exc
         return _hydrate_response(generated, chunks)
+
+    def _call_ollama(
+        self,
+        client: httpx.Client,
+        query: str,
+        chunks: list[ScoredChunk],
+    ) -> str:
+        payload = self._build_ollama_payload(query, chunks)
+        try:
+            resp = client.post(f"{self.base_url}/api/chat", json=payload)
+            resp.raise_for_status()
+        except httpx.HTTPError as exc:
+            raise GenerationError(f"Ollama /api/chat failed: {exc}") from exc
+        body = resp.json()
+        return (body.get("message") or {}).get("content") or ""
+
+    def _call_openai_compat(
+        self,
+        client: httpx.Client,
+        query: str,
+        chunks: list[ScoredChunk],
+    ) -> str:
+        payload = self._build_openai_payload(query, chunks)
+        try:
+            resp = client.post(f"{self.base_url}/chat/completions", json=payload)
+            resp.raise_for_status()
+        except httpx.HTTPError as exc:
+            raise GenerationError(
+                f"OpenAI-compatible /chat/completions failed: {exc}"
+            ) from exc
+        body = resp.json()
+        choices = body.get("choices") or []
+        if not choices:
+            return ""
+        message = choices[0].get("message") or {}
+        content = message.get("content") or ""
+        if isinstance(content, str):
+            return content
+        return json.dumps(content)

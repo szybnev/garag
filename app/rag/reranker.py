@@ -7,7 +7,7 @@ pass, so it can model term interactions that a bi-encoder cannot — at
 the cost of `O(query x candidates)` GPU time.
 
 We use the `BAAI/bge-reranker-v2-m3` checkpoint (multilingual, 567M
-params) which pairs well with the `bge-m3` embedder used upstream.
+params) as the tuned cross-encoder stage for the MVP pipeline.
 """
 
 from __future__ import annotations
