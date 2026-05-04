@@ -103,7 +103,9 @@ Rules:
    <= 0.3 when the context is weak or tangential.
 6. Keep the answer concise (1-6 sentences). No preamble, no meta commentary,
    no "As an AI" disclaimers.
-7. Output MUST be a single JSON object with keys: `answer`, `citations`,
+7. Do not include bracket citation markers like [1] in `answer`; citations are
+   rendered separately from the `citations` array.
+8. Output MUST be a single JSON object with keys: `answer`, `citations`,
    `confidence`, `used_chunks`. Each `citations` entry has ONLY `chunk_id`
    and `quote`. No markdown fences, no extra keys, no trailing text."""
 

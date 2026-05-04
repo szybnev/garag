@@ -8,9 +8,9 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.config import settings
-from app.main import build_pipeline, create_app
+from app.main import _format_sources, build_pipeline, create_app
 from app.rag.generator import GenerationError
-from app.schemas import QueryResponse
+from app.schemas import Citation, QueryResponse
 
 
 class _FakePipeline:
@@ -67,6 +67,28 @@ def test_query_returns_query_response_and_passes_top_k(fake_pipeline: _FakePipel
     assert fake_pipeline.calls == [
         {"question": "What is PowerShell?", "candidate_k": 20, "top_k": 3}
     ]
+
+
+def test_format_sources_includes_chunk_source_url_and_quote() -> None:
+    rendered = _format_sources(
+        [
+            Citation(
+                chunk_id="mitre_attack:T1059::0",
+                source="mitre_attack",
+                url="https://example.test/T1059",
+                quote="Command and Scripting Interpreter.",
+            )
+        ]
+    )
+
+    assert "mitre_attack:T1059::0" in rendered
+    assert "mitre_attack" in rendered
+    assert "https://example.test/T1059" in rendered
+    assert "Command and Scripting Interpreter." in rendered
+
+
+def test_format_sources_handles_empty_citations() -> None:
+    assert _format_sources([]) == "No explicit sources were returned by the generator."
 
 
 def test_query_rejects_invalid_payload(fake_pipeline: _FakePipeline) -> None:

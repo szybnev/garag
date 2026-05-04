@@ -25,7 +25,7 @@ from app.rag.pipeline import HybridRetriever
 from app.rag.query_pipeline import QueryPipeline
 from app.rag.reranker import Reranker
 from app.rag.retriever_dense import DenseRetriever
-from app.schemas import QueryRequest, QueryResponse
+from app.schemas import Citation, QueryRequest, QueryResponse
 
 logger = logging.getLogger(__name__)
 
@@ -151,6 +151,19 @@ def _get_pipeline(app: FastAPI) -> Any:
     return pipeline
 
 
+def _format_sources(citations: list[Citation]) -> str:
+    if not citations:
+        return "No explicit sources were returned by the generator."
+
+    lines: list[str] = []
+    for i, citation in enumerate(citations, start=1):
+        heading = f"{i}. `{citation.chunk_id}` ({citation.source})"
+        if citation.url:
+            heading += f" — {citation.url}"
+        lines.append(f"{heading}\n   {citation.quote}")
+    return "\n\n".join(lines)
+
+
 def _build_gradio_app(app: FastAPI) -> gr.Blocks:
     def ask(question: str, top_k: int) -> tuple[str, str, str]:
         pipeline = _get_pipeline(app)
@@ -159,11 +172,9 @@ def _build_gradio_app(app: FastAPI) -> gr.Blocks:
             candidate_k=settings.retrieve_top_k,
             top_k=int(top_k),
         )
-        citations = "\n\n".join(
-            f"- `{c.chunk_id}` ({c.source})\n  {c.quote}" for c in response.citations
-        )
+        sources = _format_sources(list(response.citations))
         latency = json.dumps(response.latency_ms or {}, indent=2, ensure_ascii=False)
-        return response.answer, citations, latency
+        return response.answer, sources, latency
 
     with gr.Blocks(title="GaRAG") as demo:
         gr.Markdown("# GaRAG")
@@ -171,9 +182,9 @@ def _build_gradio_app(app: FastAPI) -> gr.Blocks:
         top_k = gr.Slider(label="Top K", minimum=1, maximum=20, value=5, step=1)
         submit = gr.Button("Ask")
         answer = gr.Textbox(label="Answer", lines=8)
-        citations = gr.Markdown(label="Citations")
+        sources = gr.Textbox(label="Sources", lines=8)
         latency = gr.Code(label="Latency", language="json")
-        submit.click(ask, inputs=[question, top_k], outputs=[answer, citations, latency])
+        submit.click(ask, inputs=[question, top_k], outputs=[answer, sources, latency])
 
     return demo
 
