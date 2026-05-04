@@ -7,15 +7,20 @@ services:
       QDRANT_URL: http://qdrant:6333
       QDRANT_COLLECTION: garag_v1
       OLLAMA_URL: http://host.docker.internal:11434
-      OLLAMA_MODEL: qwen3.5:14b
+      OLLAMA_MODEL: qwen3.5:35b
       OLLAMA_JUDGE_MODEL: qwen3.5:35b
       BGE_M3_MODEL: BAAI/bge-m3
       RERANKER_MODEL: BAAI/bge-reranker-v2-m3
+      FUSION_METHOD: alpha
+      FUSION_ALPHA: "0.3"
+      GEN_TEMPERATURE: "0.4"
+      GEN_TOP_P: "1.0"
+      GEN_NUM_PREDICT: "800"
+      GEN_SEED: "42"
       PROMETHEUS_ENABLED: "true"
       LOG_LEVEL: INFO
     ports:
       - "8000:8000"
-      - "7860:7860"
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:

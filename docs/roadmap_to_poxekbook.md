@@ -6,12 +6,12 @@ What follows is the delta between GaRAG v0.1.0 and PoxekBook v1.0.
 
 ## What is already in GaRAG v0.1.0
 
-- Single hybrid RAG pipeline: dense (`bge-m3`) + sparse (`rank_bm25`) → RRF → `bge-reranker-v2-m3` → `qwen3.5:14b`
+- Single hybrid RAG pipeline: dense (`bge-m3`) + sparse (`rank_bm25`) → alpha fusion (`alpha=0.3`) → `bge-reranker-v2-m3` → `qwen3.5:35b`
 - Single chunking strategy (`RecursiveChunker 256 gpt2`) with theoretical justification
 - Single LLM for generation, single LLM (`qwen3.5:35b`) as judge
 - 50-item golden set, categories: factual, tool usage, multi-hop
-- FastAPI + Gradio + Docker Compose + Prometheus + Grafana
-- `garak` security probes + LLM Guard guardrails
+- FastAPI runtime (`/health`, `/query`, `/metrics`) + Gradio mounted at `/gradio`
+- Docker Compose with Qdrant, app, Prometheus, and Grafana
 - Structured output `{answer, citations[], confidence, used_chunks[]}`
 
 ## PoxekBook increments
@@ -36,7 +36,9 @@ What follows is the delta between GaRAG v0.1.0 and PoxekBook v1.0.
 
 ### Increment 4 — production hardening (post-course)
 
+- LLM Guard input/output guardrails wired into `/query`
 - Full `garak` probe set + custom cybersec-specific jailbreak probes
+- NFR benchmark script for latency, throughput, and indexing time
 - Adversarial golden set with known prompt-injection payloads
 - Request-level cost tracking (tokens in/out, per-stage GPU seconds)
 - Multi-tenant auth + rate limiting (per-API-key throttling)

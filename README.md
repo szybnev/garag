@@ -8,7 +8,10 @@ MVP for the **GigaSchool LLM-Engineer** final project (track A). Dedicated slice
 
 ## Status
 
-Work in progress — see `docs/plans/` (in parent `gigaschool/` repo) and the `bd` issue tracker for the current state.
+Runtime MVP is implemented: hybrid retrieval, reranking, generation, FastAPI,
+Gradio mounted under FastAPI, Prometheus metrics, Docker Compose wiring, and
+evaluation scripts. Security guardrails, garak runner, and the NFR benchmark
+script are planned work.
 
 Target release: **v0.1.0-garag** — 2026-04-24.
 
@@ -18,16 +21,16 @@ Target release: **v0.1.0-garag** — 2026-04-24.
 query
   │
   ▼
-[input guardrails] → [dense (bge-m3) + sparse (BM25)] → [RRF fusion]
-  │                                                           │
-  ▼                                                           ▼
-[reranker bge-reranker-v2-m3] ──► [generator qwen3.5:35b via Ollama, structured output]
-                                                              │
-                                                              ▼
-                                                   [output guardrails]
-                                                              │
-                                                              ▼
-                                             QueryResponse {answer, citations[], confidence, used_chunks[]}
+[dense (bge-m3) + sparse (BM25)] → [alpha fusion, α=0.3]
+                                      │
+                                      ▼
+                      [reranker bge-reranker-v2-m3]
+                                      │
+                                      ▼
+                 [generator qwen3.5:35b via Ollama]
+                                      │
+                                      ▼
+        QueryResponse {answer, citations[], confidence, used_chunks[], latency_ms}
 ```
 
 Full design rationale — NFR table with targets, choice of `bge-m3`/`qwen3.5:35b`/`RecursiveChunker`, HackerOne metadata-only stance, and the explicit list of things GaRAG does not attempt — lives in [`docs/design.md`](./docs/design.md).
@@ -40,10 +43,10 @@ Full design rationale — NFR table with targets, choice of `bge-m3`/`qwen3.5:35
 - **Reranker:** `BAAI/bge-reranker-v2-m3` cross-encoder
 - **LLM:** `qwen3.5:35b` via Ollama (`/api/chat`, `think=false`)
 - **LLM-as-judge:** `qwen3.5:35b` (same model — self-bias caveat noted for d13)
-- **API:** FastAPI + Pydantic structured output
-- **UI:** Gradio
+- **API:** FastAPI + Pydantic structured output (`/health`, `/query`, `/metrics`)
+- **UI:** Gradio mounted at `/gradio`
 - **Orchestration:** Docker Compose (app + Qdrant + Prometheus + Grafana)
-- **Security:** `garak` probes + LLM Guard guardrails
+- **Security:** `garak` probes + LLM Guard guardrails are planned
 - **Python:** 3.12, uv + ruff + ty
 
 ## Quickstart
@@ -77,7 +80,8 @@ curl -s -X POST http://localhost:8000/query \
 ```
 
 - **FastAPI:** `http://localhost:8000`
-- **Gradio UI:** `http://localhost:7860`
+- **Gradio UI:** `http://localhost:8000/gradio`
+- **Prometheus metrics:** `http://localhost:8000/metrics`
 - **Grafana:** `http://localhost:3001` (anonymous)
 - **Prometheus:** `http://localhost:9091`
 
@@ -86,7 +90,6 @@ curl -s -X POST http://localhost:8000/query \
 ```bash
 uv run python -m scripts.eval_retrieval --golden data/golden/golden_set_v1.jsonl
 uv run python -m scripts.eval_generation --golden data/golden/golden_set_v1.jsonl
-uv run python -m scripts.nfr_benchmark --n 50 --concurrency 2
 ```
 
 Reports land in `evaluation/reports/`. Current targets:
@@ -104,11 +107,8 @@ Reports land in `evaluation/reports/`. Current targets:
 
 ## Security testing
 
-```bash
-bash security/garak/run_garak.sh    # ~15–30 min
-```
-
-Report summary in `security/garak/reports/summary.md`.
+`garak` probes and LLM Guard input/output guardrails are planned for the next
+hardening pass. The current runtime MVP does not ship a runnable garak script.
 
 ## Data disclaimer
 
@@ -121,6 +121,7 @@ The corpus is rebuilt from scratch by the scripts under `scripts/`. Raw scraped 
 - GraphRAG, Agentic RAG
 - Fine-tuning (QLoRA / DPO)
 - Extended golden set (100–150 pairs)
+- `garak` runner, LLM Guard hooks, and full NFR benchmark script
 
 These live in [PoxekBook](./docs/roadmap_to_poxekbook.md).
 

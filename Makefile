@@ -11,8 +11,8 @@ help:
 	@echo "  down       - docker compose down"
 	@echo "  logs       - docker compose logs -f app"
 	@echo "  ingest     - fetch + parse + chunk + build indices"
-	@echo "  eval       - run retrieval + generation + nfr benchmarks"
-	@echo "  garak      - run garak security scan"
+	@echo "  eval       - run retrieval + generation evaluation"
+	@echo "  garak      - planned security scan placeholder"
 	@echo "  clean      - remove caches and build artefacts"
 
 sync:
@@ -53,10 +53,9 @@ ingest:
 eval:
 	uv run python -m scripts.eval_retrieval --golden data/golden/golden_set_v1.jsonl
 	uv run python -m scripts.eval_generation --golden data/golden/golden_set_v1.jsonl
-	uv run python -m scripts.nfr_benchmark --n 50 --concurrency 2
 
 garak:
-	bash security/garak/run_garak.sh
+	@echo "garak runner is planned but not implemented in GaRAG runtime MVP"
 
 clean:
 	rm -rf .pytest_cache .ruff_cache .mypy_cache **/__pycache__ dist build htmlcov .coverage

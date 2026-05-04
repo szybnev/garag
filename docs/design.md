@@ -53,8 +53,9 @@ four sources still cover the MVP scope.
 
 ## 3. Non-functional requirements
 
-All thresholds are **targets for the MVP**, measured at the end of d13 via
-`scripts/nfr_benchmark.py` and reported in `evaluation/reports/nfr_report.md`.
+All thresholds are **targets for the MVP**. Retrieval and generation quality are
+reported under `evaluation/reports/`; the dedicated NFR benchmark script and
+`evaluation/reports/nfr_report.md` are planned hardening work.
 
 | Metric | Target | Rationale |
 |---|---|---|
@@ -211,9 +212,9 @@ installation on the host.
 
 ### 4.8 Orchestration: app in Docker, Ollama outside
 
-The `ollama` container already runs on the host with `qwen3.5:14b` and
-`qwen3.5:35b` pulled. Re-bundling it inside `garag`'s compose file would
-duplicate ~30 GB of model weights. Instead, `app` reaches Ollama via
+The `ollama` container already runs on the host with `qwen3.5:35b` pulled.
+Re-bundling it inside `garag`'s compose file would duplicate ~30 GB of model
+weights. Instead, `app` reaches Ollama via
 `http://host.docker.internal:11434` with an explicit
 `extra_hosts: ["host.docker.internal:host-gateway"]` clause (required on
 Linux).
@@ -238,5 +239,4 @@ Linux).
 - `scripts/chunk_corpus.py` — chunking with `RecursiveChunker 256 gpt2`
 - `experiments/00_data_overview.ipynb` — per-source statistics
 - `experiments/01_chunking_choice.ipynb` — chunking rationale + distribution
-- `evaluation/reports/` — retrieval / generation / NFR reports (filled in d6,
-  d10, d13 respectively)
+- `evaluation/reports/` — retrieval and generation reports

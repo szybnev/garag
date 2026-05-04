@@ -25,12 +25,12 @@ and the private PoxekBook continuation.
 
 | Item | Value |
 |---|---|
-| Plan day completed | d8 |
+| Plan day completed | d10 runtime MVP |
 | Target release | `v0.1.0-garag` on 2026-04-24 |
 | Open public repo | https://github.com/szybnev/garag |
 | Private continuation | https://github.com/szybnev/poxekbook |
-| bd issue tracker | `garag-zqc` epic + 28 child issues, `.1`-`.16` closed |
-| Test suite | 56 tests passing, coverage 63% (60% threshold) |
+| bd issue tracker | local `bd`; run `bd ready` / inspect `.beads/issues.jsonl` |
+| Test suite | 90 tests passing, coverage 83% (60% threshold) |
 | Last latency snapshot | retrieval p95 about 4.1 s with reranker |
 
 Latest retrieval metrics on 50 golden queries:
@@ -130,9 +130,9 @@ Never stop with local-only completed work. If push fails, resolve and retry.
 | Generator | `qwen3.5:35b` via Ollama `/api/chat` with `think=false` |
 | LLM-as-judge | `qwen3.5:35b`; self-bias caveat acknowledged for d13 |
 | Structured output | `app.schemas.QueryResponse.model_json_schema()` to Ollama `format` |
-| Web layer | FastAPI + Gradio, Docker Compose |
+| Web layer | FastAPI `/health` `/query` `/metrics`, Gradio mounted at `/gradio`, Docker Compose |
 | Observability | Prometheus + Grafana, anonymous viewer |
-| Security | `garak` probes + LLM Guard input/output guardrails |
+| Security | `garak` probes + LLM Guard input/output guardrails planned |
 
 Runtime defaults must stay aligned across `app/config.py` and `.env.example`.
 
