@@ -4,7 +4,7 @@ Takes a list of `ScoredChunk` candidates from the hybrid retriever and
 re-scores each `(query, chunk.text)` pair with a cross-encoder. The
 cross-encoder sees both the query and the chunk in a single forward
 pass, so it can model term interactions that a bi-encoder cannot — at
-the cost of `O(query x candidates)` GPU time.
+the cost of `O(query x candidates)` cross-encoder inference time.
 
 We use the `BAAI/bge-reranker-v2-m3` checkpoint (multilingual, 567M
 params) as the tuned cross-encoder stage for the MVP pipeline.
@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from FlagEmbedding import FlagReranker
 
+from app.config import settings
 from app.rag import ScoredChunk
 
 DEFAULT_MODEL = "BAAI/bge-reranker-v2-m3"
@@ -24,15 +25,17 @@ class Reranker:
 
     def __init__(
         self,
-        model_name: str = DEFAULT_MODEL,
+        model_name: str | None = None,
         *,
-        use_fp16: bool = True,
-        device: str = "cuda",
+        use_fp16: bool | None = None,
+        device: str | None = None,
         max_length: int = 512,
     ) -> None:
-        self.model_name = model_name
+        self.model_name = model_name or settings.reranker_model
+        use_fp16 = settings.reranker_use_fp16 if use_fp16 is None else use_fp16
+        device = device or settings.reranker_device
         self.model = FlagReranker(
-            model_name,
+            self.model_name,
             use_fp16=use_fp16,
             normalize=True,
             devices=[device],

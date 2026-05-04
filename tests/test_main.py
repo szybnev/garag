@@ -95,9 +95,9 @@ def test_target_generator_model_value_uses_openai_model(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(settings, "llm_provider", "openai_compat")
-    monkeypatch.setattr(settings, "openai_model", "zai-org/glm-4.7-flash")
+    monkeypatch.setattr(settings, "openai_model", "glm-4.7-flash")
 
-    assert _target_generator_model_value() == "zai-org/glm-4.7-flash (openai_compat)"
+    assert _target_generator_model_value() == "glm-4.7-flash (openai_compat)"
 
 
 def test_target_generator_model_value_uses_ollama_model(
@@ -158,7 +158,8 @@ def test_build_pipeline_passes_configured_qdrant_url(monkeypatch: pytest.MonkeyP
     captured: dict[str, Any] = {}
 
     class FakeReranker:
-        pass
+        def __init__(self, **kwargs: Any) -> None:
+            captured["reranker"] = kwargs
 
     class FakeDenseRetriever:
         def __init__(self, *, qdrant_url: str, collection: str) -> None:
@@ -178,6 +179,9 @@ def test_build_pipeline_passes_configured_qdrant_url(monkeypatch: pytest.MonkeyP
 
     monkeypatch.setattr(settings, "qdrant_url", "http://qdrant.test:6333")
     monkeypatch.setattr(settings, "qdrant_collection", "garag_test")
+    monkeypatch.setattr(settings, "reranker_model", "reranker-test")
+    monkeypatch.setattr(settings, "reranker_device", "cpu")
+    monkeypatch.setattr(settings, "reranker_use_fp16", False)
     monkeypatch.setattr("app.main.Reranker", FakeReranker)
     monkeypatch.setattr("app.main.DenseRetriever", FakeDenseRetriever)
     monkeypatch.setattr("app.main.HybridRetriever", FakeHybridRetriever)
@@ -188,4 +192,9 @@ def test_build_pipeline_passes_configured_qdrant_url(monkeypatch: pytest.MonkeyP
 
     assert captured["qdrant_url"] == "http://qdrant.test:6333"
     assert captured["collection"] == "garag_test"
+    assert captured["reranker"] == {
+        "model_name": "reranker-test",
+        "use_fp16": False,
+        "device": "cpu",
+    }
     assert captured["pipeline"]["retriever"] is not None

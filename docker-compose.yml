@@ -7,17 +7,19 @@ services:
       QDRANT_URL: http://qdrant:6333
       QDRANT_COLLECTION: garag_v1
       LLM_PROVIDER: openai_compat
-      OPENAI_BASE_URL: http://host.docker.internal:1234/v1
-      OPENAI_MODEL: zai-org/glm-4.7-flash
+      OPENAI_BASE_URL: http://host.docker.internal:8888/v1
+      OPENAI_MODEL: glm-4.7-flash
       EMBEDDING_PROVIDER: openai_compat
-      OPENAI_EMBEDDING_BASE_URL: http://host.docker.internal:1234/v1
-      OPENAI_EMBEDDING_MODEL: text-embedding-qwen3-embedding-0.6b
+      OPENAI_EMBEDDING_BASE_URL: http://host.docker.internal:11434/v1
+      OPENAI_EMBEDDING_MODEL: andersc/qwen3-embedding:0.6b
       EMBEDDING_DIM: "1024"
       OLLAMA_URL: http://host.docker.internal:11434
       OLLAMA_MODEL: qwen3.5:35b
       OLLAMA_JUDGE_MODEL: qwen3.5:35b
       BGE_M3_MODEL: BAAI/bge-m3
       RERANKER_MODEL: BAAI/bge-reranker-v2-m3
+      RERANKER_DEVICE: cpu
+      RERANKER_USE_FP16: "false"
       FUSION_METHOD: alpha
       FUSION_ALPHA: "0.3"
       RERANK_TOP_K: "12"
@@ -38,13 +40,6 @@ services:
       - ./data/index:/app/data/index:ro
       - ./data/processed:/app/data/processed:ro
       - hf_cache:/root/.cache/huggingface
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: ["gpu"]
 
   qdrant:
     image: qdrant/qdrant:v1.16.0

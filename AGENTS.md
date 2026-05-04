@@ -124,13 +124,13 @@ Never stop with local-only completed work. If push fails, resolve and retry.
 |---|---|
 | Python | 3.12, `uv`, ruff, ty |
 | Vector DB | Qdrant `garag_v1`, HNSW `m=16, ef_construct=200`, dim 1024, cosine |
-| Embedder | `text-embedding-qwen3-embedding-0.6b` via LM Studio OpenAI-compatible `/v1/embeddings`, dim 1024 |
+| Embedder | `andersc/qwen3-embedding:0.6b` via Ollama OpenAI-compatible `/v1/embeddings`, dim 1024 |
 | Sparse | `rank_bm25.BM25Okapi`, tuned `k1=0.8, b=0.5` + NLTK english stopwords; searchable text includes chunk/doc IDs, source, title, and chunk text |
 | Fusion | alpha-weighted min-max, tuned `alpha=0.3`; RRF k=60 also exists |
-| Reranker | `BAAI/bge-reranker-v2-m3`, cross-encoder, top-20 to top-12 |
-| Generator | `zai-org/glm-4.7-flash` via LM Studio OpenAI-compatible `/v1/chat/completions` |
+| Reranker | `BAAI/bge-reranker-v2-m3`, CPU cross-encoder, top-20 to top-12 |
+| Generator | `glm-4.7-flash` via vLLM OpenAI-compatible `/v1/chat/completions` |
 | LLM-as-judge | `qwen3.5:35b`; older same-checkpoint evals carry the d13 self-bias caveat |
-| Structured output | `_GeneratedResponse` JSON schema; OpenAI-compatible `response_format` for LM Studio |
+| Structured output | `_GeneratedResponse` JSON schema; OpenAI-compatible `response_format` for vLLM |
 | Web layer | FastAPI `/health` `/query` `/metrics`, Gradio mounted at `/gradio`, Docker Compose |
 | Observability | Prometheus + Grafana, anonymous viewer |
 | Security | `garak` probes + LLM Guard input/output guardrails planned |
@@ -177,12 +177,12 @@ Run commands through `uv run`; do not activate the virtualenv with `source`.
 ```text
 POST /query (FastAPI, QueryRequest)
   -> HybridRetriever in app/rag/pipeline.py
-     -> DenseRetriever: qwen3 embedding + Qdrant query_points
+     -> DenseRetriever: qwen3 embedding via Ollama + Qdrant query_points
      -> SparseRetriever: rank_bm25 pickle
      -> alpha-weighted fusion, alpha=0.3
-     -> Reranker: bge-reranker-v2-m3, top-20 to top-12
+     -> Reranker: bge-reranker-v2-m3 on CPU, top-20 to top-12
   -> Generator in app/rag/generator.py
-     -> zai-org/glm-4.7-flash via LM Studio /v1/chat/completions
+     -> glm-4.7-flash via vLLM /v1/chat/completions
      -> QueryResponse with answer, citations, confidence
 ```
 
@@ -193,7 +193,7 @@ Reference paths:
 | `app/schemas.py` | `Document`, `Chunk`, `Citation`, `QueryRequest`, `QueryResponse` |
 | `app/config.py` | `pydantic-settings` runtime config |
 | `app/rag/pipeline.py` | `HybridRetriever` orchestrator |
-| `app/rag/embedder.py` | LM Studio embedding wrapper with FlagEmbedding fallback |
+| `app/rag/embedder.py` | OpenAI-compatible embedding wrapper with FlagEmbedding fallback |
 | `app/rag/retriever_dense.py` | Qdrant `query_points` |
 | `app/rag/retriever_sparse.py` | BM25Okapi pickle loader |
 | `app/rag/fusion.py` | RRF and alpha-weighted fusion |
@@ -202,16 +202,17 @@ Reference paths:
 ## Sharp Edges
 
 - **qwen3.5 thinking mode.** Native Ollama uses `/api/chat` with
-  `{"think": false}`. Runtime now defaults to LM Studio's OpenAI-compatible
+  `{"think": false}`. Runtime now defaults to vLLM's OpenAI-compatible
   `/v1/chat/completions`.
 - **Ollama structured output on MoE qwen3.5 is leaky.** The full nested
   `QueryResponse` schema caused missing `citations[].source`. The generator asks
   only for `chunk_id` and `quote`, then hydrates `source` and `url` from chunks.
   Do not expand the LLM-side schema without re-running
   `scripts/validate_generator.py`.
-- **Ollama lives outside Docker Compose.** Compose reaches it through
-  `http://host.docker.internal:11434` with `extra_hosts`. Host scripts must use
-  `OLLAMA_URL=http://localhost:11434`.
+- **Model servers live outside Docker Compose.** Compose reaches vLLM at
+  `http://host.docker.internal:8888/v1` for chat completions and Ollama at
+  `http://host.docker.internal:11434/v1` for embeddings. Host scripts use
+  `http://localhost:8888/v1` and `http://localhost:11434/v1`.
 - **FlagEmbedding / FlagReranker can hang on Hugging Face ETag checks.** Use
   `HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1` for CLI scripts that construct a
   retriever or reranker.

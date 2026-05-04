@@ -50,13 +50,13 @@ cleared with 11–16 п.п. headroom. The weak category is **tool_usage** (Recal
 |---|---|
 | Python | 3.12, **uv** + ruff + ty (modern-python skill) |
 | Vector DB | Qdrant `garag_v1`, HNSW `m=16, ef_construct=200`, dim 1024, cosine |
-| Embedder | `text-embedding-qwen3-embedding-0.6b` via LM Studio OpenAI-compatible `/v1/embeddings`, dim 1024 |
+| Embedder | `andersc/qwen3-embedding:0.6b` via Ollama OpenAI-compatible `/v1/embeddings`, dim 1024 |
 | Sparse | `rank_bm25.BM25Okapi`, **tuned** `k1=0.8, b=0.5` + nltk english stopwords |
 | Fusion | alpha-weighted min-max, **tuned** `alpha=0.3` (RRF k=60 also implemented) |
-| Reranker | `BAAI/bge-reranker-v2-m3` cross-encoder, top-20 → top-12 |
-| Generator (runtime) | `zai-org/glm-4.7-flash` via LM Studio OpenAI-compatible `/v1/chat/completions` |
+| Reranker | `BAAI/bge-reranker-v2-m3` CPU cross-encoder, top-20 → top-12 |
+| Generator (runtime) | `glm-4.7-flash` via vLLM OpenAI-compatible `/v1/chat/completions` |
 | LLM-as-judge | `qwen3.5:35b`; older same-checkpoint evals carry the d13 self-bias caveat |
-| Structured output | `_GeneratedResponse` JSON schema; OpenAI-compatible `response_format` for LM Studio |
+| Structured output | `_GeneratedResponse` JSON schema; OpenAI-compatible `response_format` for vLLM |
 | Web layer (d10 runtime MVP) | FastAPI `/health` `/query` `/metrics`, Gradio mounted at `/gradio`, Docker Compose |
 | Observability (d11) | Prometheus + Grafana, anonymous viewer |
 | Security (d12) | `garak` probes + LLM Guard input/output guardrails planned |
@@ -111,15 +111,15 @@ bd sync                                          # MUST run before git push
                   ┌──────────▼──────────────┐
                   │   HybridRetriever       │  app/rag/pipeline.py
                   ├─────────────────────────┤
-                  │ DenseRetriever          │  qwen3 embedding + Qdrant query_points
+                  │ DenseRetriever          │  qwen3 embedding via Ollama + Qdrant query_points
                   │ SparseRetriever         │  rank_bm25 pickle
                   │ alpha-weighted fusion   │  alpha=0.3
-                  │ Reranker (bge-rer-v2)   │  cross-encoder, top-20→top-12
+                  │ Reranker (bge-rer-v2)   │  CPU cross-encoder, top-20→top-12
                   └──────────┬──────────────┘
                              │
                   ┌──────────▼──────────────┐
                   │   Generator (d9)        │  app/rag/generator.py
-                  │ zai-org/glm-4.7-flash    │  LM Studio /v1/chat/completions
+                  │ glm-4.7-flash           │  vLLM /v1/chat/completions
                   │   format=QueryResponse  │  structured output
                   └──────────┬──────────────┘
                              │
@@ -148,13 +148,13 @@ touching the affected modules.**
   LLM only for `chunk_id` + `quote` per citation and hydrating `source` /
   `url` post-hoc from the retrieved chunks. **Do not** expand the LLM-side
   schema without re-running `scripts/validate_generator.py`.
-- **Ollama lives outside Docker Compose.** The `ollama` container is started
-  separately on the host. The app inside Compose reaches it via
-  `http://host.docker.internal:11434` with `extra_hosts: ["host.docker.internal:host-gateway"]`
-  in `docker-compose.yml` (Linux requires the explicit `host-gateway` mapping).
-  **Running scripts from the host** (e.g. `scripts/validate_generator.py`)
-  must override `OLLAMA_URL=http://localhost:11434` — `host.docker.internal`
-  only resolves inside the compose network.
+- **Model servers live outside Docker Compose.** Runtime generation uses vLLM at
+  `http://host.docker.internal:8888/v1`; embeddings use Ollama's
+  OpenAI-compatible endpoint at `http://host.docker.internal:11434/v1`.
+  `docker-compose.yml` sets `extra_hosts: ["host.docker.internal:host-gateway"]`
+  for Linux. **Running scripts from the host** must use localhost URLs such as
+  `OPENAI_BASE_URL=http://localhost:8888/v1` and
+  `OPENAI_EMBEDDING_BASE_URL=http://localhost:11434/v1`.
 - **`FlagEmbedding` / `FlagReranker` hang on HuggingFace ETag checks.** Even
   when the model is fully cached under `~/.cache/huggingface/hub/`, the init
   path opens a connection to HuggingFace Hub to check for newer revisions and
@@ -233,7 +233,7 @@ touching the affected modules.**
 | `app/schemas.py` | `Document`, `Chunk`, `Citation`, `QueryRequest`, `QueryResponse` |
 | `app/config.py` | `pydantic-settings` runtime config with tuned defaults |
 | `app/rag/pipeline.py` | `HybridRetriever` orchestrator |
-| `app/rag/embedder.py` | LM Studio embedding wrapper with FlagEmbedding fallback |
+| `app/rag/embedder.py` | OpenAI-compatible embedding wrapper with FlagEmbedding fallback |
 | `app/rag/retriever_dense.py` | Qdrant `query_points` |
 | `app/rag/retriever_sparse.py` | BM25Okapi pickle loader |
 | `app/rag/fusion.py` | RRF + alpha-weighted, with unit tests |

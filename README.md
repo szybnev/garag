@@ -28,7 +28,7 @@ query
                       [reranker bge-reranker-v2-m3]
                                       │
                                       ▼
-        [generator zai-org/glm-4.7-flash via LM Studio]
+        [generator glm-4.7-flash via vLLM]
                                       │
                                       ▼
         QueryResponse {answer, citations[], confidence, used_chunks[], latency_ms}
@@ -39,11 +39,11 @@ Full design rationale — NFR table with targets, choice of local models/`Recurs
 ## Stack
 
 - **Vector DB:** Qdrant (HNSW)
-- **Embedding:** `text-embedding-qwen3-embedding-0.6b` via LM Studio OpenAI-compatible API
+- **Embedding:** `andersc/qwen3-embedding:0.6b` via Ollama OpenAI-compatible API
 - **Sparse:** `rank_bm25` (k1/b tuned per corpus; searchable text includes
   `chunk_id`, `doc_id`, source, title, and chunk text)
-- **Reranker:** `BAAI/bge-reranker-v2-m3` cross-encoder
-- **LLM:** `zai-org/glm-4.7-flash` via LM Studio OpenAI-compatible API
+- **Reranker:** `BAAI/bge-reranker-v2-m3` cross-encoder on CPU
+- **LLM:** `glm-4.7-flash` served by vLLM from `zai-org/GLM-4.7-Flash`
 - **LLM-as-judge:** `qwen3.5:35b` via Ollama fallback path
 - **API:** FastAPI + Pydantic structured output (`/health`, `/query`, `/metrics`)
 - **UI:** Gradio mounted at `/gradio`
@@ -55,19 +55,20 @@ Full design rationale — NFR table with targets, choice of local models/`Recurs
 
 During local experiments, the generator was compared across
 `qwen/qwen3.6-35b-a3b`, `ibm/granite-3.2-8b`, `ibm/granite-4-h-tiny`, and
-`zai-org/glm-4.7-flash`. In the current run, `zai-org/glm-4.7-flash` showed
-the best practical results and is therefore the runtime default.
+`zai-org/glm-4.7-flash`. In the current run, GLM-4.7-Flash showed the best
+practical results and is therefore the runtime default, served locally by vLLM
+as `glm-4.7-flash`.
 
 ## Quickstart
 
-Prerequisites: Docker, Docker Compose, and LM Studio serving
-`zai-org/glm-4.7-flash` plus `text-embedding-qwen3-embedding-0.6b` on
-`http://localhost:1234/v1`.
+Prerequisites: Docker, Docker Compose, vLLM serving `glm-4.7-flash` on
+`http://localhost:8888/v1`, and Ollama serving `andersc/qwen3-embedding:0.6b`
+on `http://localhost:11434/v1`.
 
-For the Docker app container, LM Studio must accept connections from the Docker
-host gateway (`http://host.docker.internal:1234/v1`). If LM Studio is bound to
-localhost only, local scripts work but `docker compose` runtime queries cannot
-reach `/v1/chat/completions` or `/v1/embeddings`.
+For the Docker app container, both external model servers must accept
+connections from the Docker host gateway: vLLM at
+`http://host.docker.internal:8888/v1` for chat completions and Ollama at
+`http://host.docker.internal:11434/v1` for embeddings.
 
 ```bash
 # 1. Install dependencies
@@ -128,7 +129,7 @@ Qdrant collection and measure full indexing time. Add `--fail-on-target-miss`
 when using the benchmark as a CI-style gate.
 
 The throughput target is scoped to the single-user academic MVP with a local
-35B LM Studio generator and the NFR benchmark's `top_k=3` context budget. The
+vLLM-hosted GLM generator and the NFR benchmark's `top_k=3` context budget. The
 ≥2 RPS target is deferred to a serving-focused increment such as vLLM
 continuous batching or a smaller generator.
 

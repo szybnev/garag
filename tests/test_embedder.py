@@ -1,6 +1,6 @@
 """Mock-based tests for `DenseEmbedder`.
 
-The unit suite exercises the OpenAI-compatible LM Studio embedding path
+The unit suite exercises the OpenAI-compatible embedding path
 without requiring a running local model server.
 """
 
@@ -34,15 +34,15 @@ def test_openai_compat_embedding_payload_and_response() -> None:
                     {"object": "embedding", "index": 1, "embedding": [0.4, 0.5, 0.6]},
                     {"object": "embedding", "index": 0, "embedding": [0.1, 0.2, 0.3]},
                 ],
-                "model": "text-embedding-qwen3-embedding-0.6b",
+                "model": "andersc/qwen3-embedding:0.6b",
             },
         )
 
     client = httpx.Client(transport=httpx.MockTransport(handler))
     embedder = DenseEmbedder(
         provider="openai_compat",
-        base_url="http://lmstudio.test:1234/v1",
-        model_name="text-embedding-qwen3-embedding-0.6b",
+        base_url="http://ollama.test:11434/v1",
+        model_name="andersc/qwen3-embedding:0.6b",
         dim=3,
         client=client,
     )
@@ -51,9 +51,9 @@ def test_openai_compat_embedding_payload_and_response() -> None:
 
     assert requests == [
         {
-            "url": "http://lmstudio.test:1234/v1/embeddings",
+            "url": "http://ollama.test:11434/v1/embeddings",
             "payload": {
-                "model": "text-embedding-qwen3-embedding-0.6b",
+                "model": "andersc/qwen3-embedding:0.6b",
                 "input": ["first", "second"],
             },
         }
@@ -69,8 +69,8 @@ def test_openai_compat_embedding_empty_input_skips_backend() -> None:
     client = httpx.Client(transport=httpx.MockTransport(handler))
     embedder = DenseEmbedder(
         provider="openai_compat",
-        base_url="http://lmstudio.test:1234/v1",
-        model_name="text-embedding-qwen3-embedding-0.6b",
+        base_url="http://ollama.test:11434/v1",
+        model_name="andersc/qwen3-embedding:0.6b",
         dim=3,
         client=client,
     )
@@ -91,8 +91,8 @@ def test_openai_compat_embedding_rejects_wrong_dimension() -> None:
     client = httpx.Client(transport=httpx.MockTransport(handler))
     embedder = DenseEmbedder(
         provider="openai_compat",
-        base_url="http://lmstudio.test:1234/v1",
-        model_name="text-embedding-qwen3-embedding-0.6b",
+        base_url="http://ollama.test:11434/v1",
+        model_name="andersc/qwen3-embedding:0.6b",
         dim=3,
         client=client,
     )

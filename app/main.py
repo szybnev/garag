@@ -34,7 +34,11 @@ PipelineFactory = Callable[[], Any]
 
 def build_pipeline() -> QueryPipeline:
     """Construct the real retrieval + generation pipeline for runtime use."""
-    reranker = Reranker()
+    reranker = Reranker(
+        model_name=settings.reranker_model,
+        use_fp16=settings.reranker_use_fp16,
+        device=settings.reranker_device,
+    )
     dense = DenseRetriever(
         qdrant_url=settings.qdrant_url,
         collection=settings.qdrant_collection,
@@ -63,7 +67,7 @@ def create_app(
     """Create the ASGI application.
 
     `pipeline_factory` is injectable so tests can avoid loading Qdrant, BM25,
-    Hugging Face models, and Ollama.
+    Hugging Face models, and external model servers.
     """
     registry = CollectorRegistry()
     query_requests = Counter(
