@@ -1,7 +1,7 @@
 """Dense embedder wrapper for GaRAG retrieval.
 
-Runtime defaults to Ollama's OpenAI-compatible `/v1/embeddings`
-endpoint with `andersc/qwen3-embedding:0.6b`. The previous
+Runtime defaults to LM Studio's OpenAI-compatible `/v1/embeddings`
+endpoint with `text-embedding-qwen3-embedding-0.6b`. The previous
 `BAAI/bge-m3` FlagEmbedding path remains available as an explicit
 fallback for offline/local-model experiments.
 """
@@ -16,7 +16,7 @@ import numpy as np
 
 from app.config import settings
 
-DEFAULT_MODEL = "andersc/qwen3-embedding:0.6b"
+DEFAULT_MODEL = "text-embedding-qwen3-embedding-0.6b"
 DEFAULT_FLAG_MODEL = "BAAI/bge-m3"
 DEFAULT_DIM = 1024
 

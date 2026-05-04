@@ -3,7 +3,7 @@
 The retrieval pipeline returns a list of `ScoredChunk` candidates; this
 module turns them into a grounded `QueryResponse` (answer + citations +
 self-reported confidence) by calling a local model through either native Ollama
-`/api/chat` or an OpenAI-compatible local server such as vLLM.
+`/api/chat` or an OpenAI-compatible local server such as LM Studio.
 
 ## Why native `/api/chat` instead of the OpenAI-compatible endpoint
 
@@ -307,9 +307,8 @@ class Generator:
 
         Raises `GenerationError` on HTTP failure or on JSON that cannot be
         validated against the schema. Malformed structured JSON gets one retry:
-        OpenAI-compatible local servers can occasionally truncate schema-constrained
-        content under concurrent load, while valid-but-schema-wrong JSON still
-        fails fast.
+        LM Studio can occasionally truncate schema-constrained content under
+        concurrent load, while valid-but-schema-wrong JSON still fails fast.
         """
         client = self._get_client()
         last_parse_error: _StructuredOutputParseError | None = None

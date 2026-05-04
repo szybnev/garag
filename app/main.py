@@ -34,11 +34,7 @@ PipelineFactory = Callable[[], Any]
 
 def build_pipeline() -> QueryPipeline:
     """Construct the real retrieval + generation pipeline for runtime use."""
-    reranker = Reranker(
-        model_name=settings.reranker_model,
-        use_fp16=settings.reranker_use_fp16,
-        device=settings.reranker_device,
-    )
+    reranker = Reranker()
     dense = DenseRetriever(
         qdrant_url=settings.qdrant_url,
         collection=settings.qdrant_collection,

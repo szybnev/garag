@@ -66,14 +66,14 @@ runtime NFR measurements are reported under `evaluation/reports/`.
 | Metric | Target | Rationale |
 |---|---|---|
 | e2e latency (p95, warm) | ≤ 8 s | Interactive Q&A on a single-user RTX 5090 |
-| Throughput | ≥ 0.5 RPS | Single local instance, vLLM-hosted generator, benchmark `top_k=3` |
+| Throughput | ≥ 0.5 RPS | Single local instance, 35B LM Studio generator, benchmark `top_k=3` |
 | Indexing time (full corpus) | ≤ 20 min | One-off on cold Qdrant, acceptable for a rebuild step |
 | Retrieval Recall@10 | ≥ 0.75 | Measured on the 50-item golden set with hybrid + reranker |
 | Retrieval nDCG@10 | ≥ 0.65 | Same |
 | Generation faithfulness | ≥ 0.80 | LLM-as-judge (`qwen3.5:35b`), 0–1 scale |
 | Generation correctness | ≥ 0.70 | LLM-as-judge vs reference answer |
 | Citation accuracy | ≥ 0.85 | Fraction of citations pointing to returned chunks |
-| Peak VRAM (without LLM) | ≤ 6 GB | local retrieval stack excluding the vLLM-hosted generator |
+| Peak VRAM (without LLM) | ≤ 6 GB | local retrieval stack excluding the LM Studio-hosted generator |
 | Peak VRAM (with LLM) | ≤ 28 GB | Headroom on the RTX 5090 (32 GB) |
 
 `scripts.nfr_benchmark` measures the real HTTP `/query` path for latency and
@@ -93,11 +93,11 @@ increments can tighten each threshold independently.
 
 ## 4. Architectural decisions
 
-### 4.1 Embedding: `andersc/qwen3-embedding:0.6b`
+### 4.1 Embedding: `text-embedding-qwen3-embedding-0.6b`
 
 **Chosen because:**
-- It is served by Ollama's OpenAI-compatible `/v1/embeddings` endpoint,
-  avoiding LM Studio's baseline VRAM overhead next to the vLLM generator.
+- It is served by the same LM Studio OpenAI-compatible runtime as the
+  generator, so the MVP does not need a second local model server.
 - The observed output dimension is 1024, matching the existing Qdrant
   `garag_v1` vector size and keeping the dense index shape unchanged.
 - It keeps the stack in the qwen3-family requested for the runtime path while
@@ -129,13 +129,13 @@ language chunk body is short.
 ### 4.3 Reranker: `BAAI/bge-reranker-v2-m3`
 
 Cross-encoder reranker on top-20 → top-12. It remains the tuned reranker for
-the MVP, but now runs on CPU to leave VRAM for vLLM and the embedding model.
-The with/without comparison lands in `experiments/03_retrieval_tuning.ipynb` on d7.
+the MVP even though the dense embedder now comes from LM Studio. The
+with/without comparison lands in `experiments/03_retrieval_tuning.ipynb` on d7.
 
 ### 4.4 Generator via local runtime
 
 Runtime defaults to
-`glm-4.7-flash` served by vLLM's OpenAI-compatible
+`zai-org/glm-4.7-flash` served by LM Studio's OpenAI-compatible
 `/v1/chat/completions` endpoint. The native Ollama `/api/chat` path is still
 implemented as a fallback provider because earlier generator evaluation used
 `qwen3.5:35b` through Ollama.
@@ -200,7 +200,7 @@ Raw grid results and per-config breakdown live in
 Originally planned as a separate (larger) model than the generator to reduce
 the "grading your own homework" bias. Generation evaluation originally used
 `qwen3.5:35b` for both generation and judging; the runtime generator now
-defaults to `glm-4.7-flash` through vLLM, while the judge remains
+defaults to `zai-org/glm-4.7-flash` through LM Studio, while the judge remains
 the Ollama-hosted `qwen3.5:35b` fallback model. Treat older generation reports
 with the caveat below:
 
@@ -239,14 +239,13 @@ HNSW with `m=16`, `ef_construct=200`, cosine distance, single collection
 shifted ports (`6380`, `6381`) so it can coexist with any default 6333
 installation on the host.
 
-### 4.8 Orchestration: app in Docker, model servers outside
+### 4.8 Orchestration: app in Docker, LLM server outside
 
-The model servers run outside `garag`'s compose file to avoid duplicating
-large model weights. Docker Compose points the app at vLLM on
-`http://host.docker.internal:8888/v1` for chat completions and at Ollama on
-`http://host.docker.internal:11434/v1` for embeddings; local scripts use the
-matching `localhost` URLs. The Ollama fallback provider reaches Ollama via
-`http://host.docker.internal:11434` with an explicit
+The LLM/embedding server runs outside `garag`'s compose file to avoid
+duplicating large model weights. Docker Compose points the app at LM Studio on
+`http://host.docker.internal:1234/v1`; local scripts default to
+`http://localhost:1234/v1`. The Ollama fallback provider reaches
+Ollama via `http://host.docker.internal:11434` with an explicit
 `extra_hosts: ["host.docker.internal:host-gateway"]` clause (required on
 Linux).
 
@@ -258,7 +257,7 @@ Linux).
 - LLM benchmark (4–5 models × 3-stage filter)
 - QLoRA / DPO fine-tuning
 - 100–150 item extended golden set
-- vLLM tuning for throughput — to revisit the deferred ≥2 RPS serving target
+- vLLM for throughput — to revisit the deferred ≥2 RPS serving target
 
 ## 6. References in this repository
 

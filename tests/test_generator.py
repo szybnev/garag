@@ -1,6 +1,6 @@
 """Mock-based tests for `Generator`.
 
-We don't want the unit suite to spin up Ollama/vLLM or download a real model,
+We don't want the unit suite to spin up Ollama or download a 14B model,
 so we swap the underlying `httpx.Client` for one wired to
 `httpx.MockTransport`. That lets us assert the request payload the
 generator builds (model, messages, `think=false`, `format` schema) and
@@ -70,8 +70,8 @@ def _make_generator(
 
 def _make_openai_generator(handler: httpx.MockTransport) -> Generator:
     return Generator(
-        base_url="http://vllm.test:8888/v1",
-        model="glm-4.7-flash",
+        base_url="http://lmstudio.test:1234/v1",
+        model="zai-org/glm-4.7-flash",
         provider="openai_compat",
         client=httpx.Client(transport=handler),
     )
@@ -147,8 +147,8 @@ def test_generate_openai_compat_payload_and_response() -> None:
 
     client = httpx.Client(transport=httpx.MockTransport(handler))
     gen = Generator(
-        base_url="http://vllm.test:8888/v1",
-        model="glm-4.7-flash",
+        base_url="http://lmstudio.test:1234/v1",
+        model="zai-org/glm-4.7-flash",
         provider="openai_compat",
         client=client,
     )
@@ -156,7 +156,7 @@ def test_generate_openai_compat_payload_and_response() -> None:
 
     assert result.confidence == pytest.approx(0.9)
     payload = payloads[0]
-    assert payload["model"] == "glm-4.7-flash"
+    assert payload["model"] == "zai-org/glm-4.7-flash"
     assert payload["stream"] is False
     assert payload["max_tokens"] == gen.num_predict
     assert payload["response_format"]["type"] == "json_schema"

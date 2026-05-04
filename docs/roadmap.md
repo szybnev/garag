@@ -6,7 +6,7 @@ required for that score lives in this roadmap.
 
 ## What is already in GaRAG v0.1.0
 
-- Single hybrid RAG pipeline: dense (`andersc/qwen3-embedding:0.6b`) + sparse (`rank_bm25`) → alpha fusion (`alpha=0.3`) → CPU `bge-reranker-v2-m3` → vLLM `glm-4.7-flash`
+- Single hybrid RAG pipeline: dense (`text-embedding-qwen3-embedding-0.6b`) + sparse (`rank_bm25`) → alpha fusion (`alpha=0.3`) → `bge-reranker-v2-m3` → `zai-org/glm-4.7-flash`
 - Single chunking strategy (`RecursiveChunker 256 gpt2`) with theoretical justification
 - Single LLM for generation, single LLM (`qwen3.5:35b`) as judge
 - 50-item golden set, categories: factual, tool usage, multi-hop
@@ -34,7 +34,7 @@ required for that score lives in this roadmap.
 - **Agentic RAG** — `smolagents` `ToolCallingAgent` with `retrieve_dense`, `retrieve_sparse`, `rerank`, `graph_lookup`, `answer` tools.
 - **E7: RAG comparison** — Naive vs Hybrid (GaRAG) vs GraphRAG vs Agentic RAG on the extended golden set, per-category breakdown.
 - **Optional fine-tuning** — QLoRA instruct-tune on domain Q&A pairs or contrastive encoder fine-tuning on `(Q, pos/neg)` pairs.
-- **`vLLM` tuning** — tune continuous batching / memory utilization for throughput if the benchmark shows it matters.
+- **`vLLM` hosting** — replace LM Studio with `vLLM` continuous batching for throughput if the benchmark shows it matters.
 
 ### Increment 4 — Production Hardening
 

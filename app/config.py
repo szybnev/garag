@@ -33,19 +33,17 @@ class Settings(BaseSettings):
     ollama_judge_model: str = "qwen3.5:35b"
     ollama_keep_alive: str = "30s"
 
-    # OpenAI-compatible local LLM server (vLLM)
-    openai_base_url: str = "http://localhost:8888/v1"
-    openai_model: str = "glm-4.7-flash"
+    # OpenAI-compatible local server (LM Studio)
+    openai_base_url: str = "http://localhost:1234/v1"
+    openai_model: str = "zai-org/glm-4.7-flash"
 
     # Embedding / reranker
     embedding_provider: Literal["flagembedding", "openai_compat"] = "openai_compat"
-    openai_embedding_base_url: str = "http://localhost:11434/v1"
-    openai_embedding_model: str = "andersc/qwen3-embedding:0.6b"
+    openai_embedding_base_url: str = "http://localhost:1234/v1"
+    openai_embedding_model: str = "text-embedding-qwen3-embedding-0.6b"
     embedding_dim: int = 1024
     bge_m3_model: str = "BAAI/bge-m3"
     reranker_model: str = "BAAI/bge-reranker-v2-m3"
-    reranker_device: Literal["cuda", "cpu"] = "cpu"
-    reranker_use_fp16: bool = False
 
     # BM25 — current golden_set_v1 snapshot after metadata indexing
     # (k1=0.8, b=0.5 -> nDCG@10=0.8024)
