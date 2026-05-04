@@ -45,13 +45,13 @@ class Settings(BaseSettings):
     bge_m3_model: str = "BAAI/bge-m3"
     reranker_model: str = "BAAI/bge-reranker-v2-m3"
 
-    # BM25 — tuned via `scripts/tune_bm25.py` on golden_set_v1
-    # (k1=0.8, b=0.5 → nDCG@10=0.7844, +2.7 п.п. над дефолтами 1.5/0.75)
+    # BM25 — current golden_set_v1 snapshot after metadata indexing
+    # (k1=0.8, b=0.5 -> nDCG@10=0.8024)
     bm25_k1: float = 0.8
     bm25_b: float = 0.5
 
-    # Hybrid fusion — tuned via `scripts/tune_fusion.py` after BM25 tuning
-    # (alpha=0.3 → nDCG@10=0.7890, slightly above RRF k=60 = 0.7783)
+    # Hybrid fusion — current golden_set_v1 snapshot after BM25 rebuild
+    # (alpha=0.3 -> nDCG@10=0.7880)
     fusion_method: Literal["rrf", "alpha"] = "alpha"
     fusion_alpha: float = 0.3
     rrf_k: int = 60

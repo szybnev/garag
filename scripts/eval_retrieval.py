@@ -25,7 +25,7 @@ from app.rag.retriever_sparse import SparseRetriever
 GOLDEN_FILE = Path(__file__).resolve().parents[1] / "data" / "golden" / "golden_set_v1.jsonl"
 REPORT_FILE = Path(__file__).resolve().parents[1] / "evaluation" / "reports" / "retrieval_report.md"
 
-METRICS = {"recall_5", "recall_10", "ndcg_cut_10", "map"}
+METRICS = ("recall_5", "ndcg_cut_10", "recall_10", "map")
 METRIC_LABELS = {
     "recall_5": "Recall@5",
     "recall_10": "Recall@10",
@@ -199,7 +199,7 @@ def main() -> None:
     )
 
     summaries = [
-        _summarise("dense (bge-m3)", qrels, runs["dense"], times["dense"]),
+        _summarise("dense (qwen3 embedding)", qrels, runs["dense"], times["dense"]),
         _summarise("sparse (BM25)", qrels, runs["sparse"], times["sparse"]),
         _summarise(
             "hybrid RRF (k=60)",

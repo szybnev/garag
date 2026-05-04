@@ -6,13 +6,15 @@ What follows is the delta between GaRAG v0.1.0 and PoxekBook v1.0.
 
 ## What is already in GaRAG v0.1.0
 
-- Single hybrid RAG pipeline: dense (`bge-m3`) + sparse (`rank_bm25`) → alpha fusion (`alpha=0.3`) → `bge-reranker-v2-m3` → `qwen3.5:35b`
+- Single hybrid RAG pipeline: dense (`text-embedding-qwen3-embedding-0.6b`) + sparse (`rank_bm25`) → alpha fusion (`alpha=0.3`) → `bge-reranker-v2-m3` → `qwen/qwen3.6-35b-a3b`
 - Single chunking strategy (`RecursiveChunker 256 gpt2`) with theoretical justification
 - Single LLM for generation, single LLM (`qwen3.5:35b`) as judge
 - 50-item golden set, categories: factual, tool usage, multi-hop
 - FastAPI runtime (`/health`, `/query`, `/metrics`) + Gradio mounted at `/gradio`
 - Docker Compose with Qdrant, app, Prometheus, and Grafana
 - Structured output `{answer, citations[], confidence, used_chunks[]}`
+- Sources block in the Gradio UI with a fallback to retrieved chunks when the generator omits explicit citations
+- MITRE ATT&CK tactic documents enriched with related technique lists from `kill_chain_phases`
 
 ## PoxekBook increments
 

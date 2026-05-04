@@ -30,16 +30,17 @@ and the private PoxekBook continuation.
 | Open public repo | https://github.com/szybnev/garag |
 | Private continuation | https://github.com/szybnev/poxekbook |
 | bd issue tracker | local `bd`; run `bd ready` / inspect `.beads/issues.jsonl` |
-| Test suite | 90 tests passing, coverage 83% (60% threshold) |
+| Test suite | 113 tests passing, coverage 82.30% (60% threshold) |
+| Local corpus | 2,544 documents, 3,900 chunks, 3,900 Qdrant points |
 | Last latency snapshot | retrieval p95 about 4.1 s with reranker |
 
 Latest retrieval metrics on 50 golden queries:
 
 | Method | Recall@10 | nDCG@10 | MAP |
 |---|---:|---:|---:|
-| dense (bge-m3) | 0.8600 | 0.7261 | 0.6855 |
-| sparse (BM25 tuned k1=0.8, b=0.5) | 0.8800 | 0.7844 | 0.7532 |
-| hybrid alpha=0.3 | 0.8800 | 0.7890 | 0.7589 |
+| dense (qwen3 embedding) | 0.7600 | 0.6721 | 0.6450 |
+| sparse (BM25 tuned k1=0.8, b=0.5) | 0.8800 | 0.8024 | 0.7779 |
+| hybrid alpha=0.3 | 0.8800 | 0.7880 | 0.7575 |
 | hybrid + reranker (current default) | 0.8600 | 0.8089 | 0.7933 |
 
 NFR thresholds from `docs/design.md` section 3: Recall@10 >= 0.75 and nDCG@10
@@ -124,11 +125,11 @@ Never stop with local-only completed work. If push fails, resolve and retry.
 | Python | 3.12, `uv`, ruff, ty |
 | Vector DB | Qdrant `garag_v1`, HNSW `m=16, ef_construct=200`, dim 1024, cosine |
 | Embedder | `text-embedding-qwen3-embedding-0.6b` via LM Studio OpenAI-compatible `/v1/embeddings`, dim 1024 |
-| Sparse | `rank_bm25.BM25Okapi`, tuned `k1=0.8, b=0.5` + NLTK english stopwords |
+| Sparse | `rank_bm25.BM25Okapi`, tuned `k1=0.8, b=0.5` + NLTK english stopwords; searchable text includes chunk/doc IDs, source, title, and chunk text |
 | Fusion | alpha-weighted min-max, tuned `alpha=0.3`; RRF k=60 also exists |
 | Reranker | `BAAI/bge-reranker-v2-m3`, cross-encoder, top-20 to top-5 |
 | Generator | `qwen/qwen3.6-35b-a3b` via LM Studio OpenAI-compatible `/v1/chat/completions` |
-| LLM-as-judge | `qwen3.5:35b`; self-bias caveat acknowledged for d13 |
+| LLM-as-judge | `qwen3.5:35b`; older same-checkpoint evals carry the d13 self-bias caveat |
 | Structured output | `_GeneratedResponse` JSON schema; OpenAI-compatible `response_format` for LM Studio |
 | Web layer | FastAPI `/health` `/query` `/metrics`, Gradio mounted at `/gradio`, Docker Compose |
 | Observability | Prometheus + Grafana, anonymous viewer |
@@ -158,7 +159,7 @@ uv run python -m scripts.fetch_man_pages
 uv run python -m scripts.parse_sources
 uv run python -m scripts.chunk_corpus
 uv run python -m scripts.build_qdrant
-uv run python -m scripts.build_bm25
+uv run python -m scripts.build_bm25 --k1 0.8 --b 0.5
 
 # Evaluation
 uv run python -m scripts.eval_retrieval --alpha 0.3 --rerank
@@ -173,7 +174,7 @@ Run commands through `uv run`; do not activate the virtualenv with `source`.
 ```text
 POST /query (FastAPI, QueryRequest)
   -> HybridRetriever in app/rag/pipeline.py
-     -> DenseRetriever: bge-m3 + Qdrant query_points
+     -> DenseRetriever: qwen3 embedding + Qdrant query_points
      -> SparseRetriever: rank_bm25 pickle
      -> alpha-weighted fusion, alpha=0.3
      -> Reranker: bge-reranker-v2-m3, top-20 to top-5
@@ -217,6 +218,13 @@ Reference paths:
 - **`BGEM3FlagModel.encode()` returns a Union.** Narrow with `isinstance` around
   `out["dense_vecs"]`, as in `app/rag/embedder.py`.
 - **HackerOne is metadata-only.** Never fetch or persist disclosed report bodies.
+- **MITRE ATT&CK tactics are enriched locally.** `scripts/parse_sources.py`
+  builds tactic documents such as `TA0010 Exfiltration` from
+  `kill_chain_phases`, including the related technique list. Procedure examples
+  from ATT&CK `relationship` objects are not indexed in the MVP.
+- **BM25 depends on searchable metadata.** `scripts/build_bm25.py` indexes
+  `chunk_id`, `doc_id`, source, title, and chunk text. Rebuild it after parser
+  or chunk schema changes.
 - **Golden set deterministic dedup.** `scripts/build_golden.py` excludes already
   collected `source_chunk_id`s before sampling.
 - **Use `pytrec-eval-terrier`, not `pytrec-eval`.** The original package fails to

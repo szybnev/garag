@@ -10,8 +10,9 @@ MVP for the **GigaSchool LLM-Engineer** final project (track A). Dedicated slice
 
 Runtime MVP is implemented: hybrid retrieval, reranking, generation, FastAPI,
 Gradio mounted under FastAPI, Prometheus metrics, Docker Compose wiring, and
-evaluation/NFR benchmark scripts. Security guardrails and the garak runner are
-planned work.
+evaluation/NFR benchmark scripts. The current local corpus has 2,544 documents,
+3,900 chunks, and 3,900 Qdrant points. Security guardrails and the garak runner
+are planned work.
 
 Target release: **v0.1.0-garag** — 2026-04-24.
 
@@ -39,10 +40,11 @@ Full design rationale — NFR table with targets, choice of local qwen3-family m
 
 - **Vector DB:** Qdrant (HNSW)
 - **Embedding:** `text-embedding-qwen3-embedding-0.6b` via LM Studio OpenAI-compatible API
-- **Sparse:** `rank_bm25` (k1/b tuned per corpus)
+- **Sparse:** `rank_bm25` (k1/b tuned per corpus; searchable text includes
+  `chunk_id`, `doc_id`, source, title, and chunk text)
 - **Reranker:** `BAAI/bge-reranker-v2-m3` cross-encoder
 - **LLM:** `qwen/qwen3.6-35b-a3b` via LM Studio OpenAI-compatible API
-- **LLM-as-judge:** `qwen3.5:35b` (same model — self-bias caveat noted for d13)
+- **LLM-as-judge:** `qwen3.5:35b` via Ollama fallback path
 - **API:** FastAPI + Pydantic structured output (`/health`, `/query`, `/metrics`)
 - **UI:** Gradio mounted at `/gradio`
 - **Orchestration:** Docker Compose (app + Qdrant + Prometheus + Grafana)
@@ -72,7 +74,7 @@ uv run python -m scripts.fetch_hackerone_reports --limit 500
 uv run python -m scripts.fetch_man_pages
 uv run python -m scripts.parse_sources
 uv run python -m scripts.chunk_corpus
-uv run python -m scripts.build_bm25
+uv run python -m scripts.build_bm25 --k1 0.8 --b 0.5
 
 # 3. Start the stack
 docker compose up -d qdrant
@@ -118,6 +120,16 @@ default. Add `--run-indexing` only when you intentionally want to rebuild the
 Qdrant collection and measure full indexing time. Add `--fail-on-target-miss`
 when using the benchmark as a CI-style gate.
 
+Latest retrieval snapshot on `golden_set_v1` after MITRE tactic enrichment and
+BM25 identifier indexing:
+
+| Method | Recall@10 | nDCG@10 | MAP |
+|---|---:|---:|---:|
+| dense (qwen3 embedding) | 0.7600 | 0.6721 | 0.6450 |
+| sparse (BM25 k1=0.8, b=0.5) | 0.8800 | 0.8024 | 0.7779 |
+| hybrid alpha=0.3 | 0.8800 | 0.7880 | 0.7575 |
+| hybrid + reranker | 0.8600 | 0.8089 | 0.7933 |
+
 ## Security testing
 
 `garak` probes and LLM Guard input/output guardrails are planned for the next
@@ -126,6 +138,23 @@ hardening pass. The current runtime MVP does not ship a runnable garak script.
 ## Data disclaimer
 
 The corpus is rebuilt from scratch by the scripts under `scripts/`. Raw scraped data is **not** shipped with this repository. HackerOne reports are pulled from open-source mirrors of public disclosures (e.g. `github.com/reddelexc/hackerone-reports`), capped at 500 top-disclosed reports.
+
+Current corpus composition:
+
+| Source | Documents | Chunks |
+|---|---:|---:|
+| MITRE ATT&CK Enterprise | 1,751 | 2,562 |
+| MITRE ATLAS | 278 | 458 |
+| HackerOne public reports metadata | 500 | 500 |
+| OWASP Top 10 (2021, EN) | 10 | 110 |
+| Security tool man pages | 5 | 270 |
+
+MITRE ATT&CK technique and sub-technique documents are fully loaded from the
+active Enterprise STIX bundle. Tactic documents, such as `TA0010 Exfiltration`,
+are enriched with the current list of related techniques from
+`kill_chain_phases`, so tactic-level questions can retrieve the category page
+and the technique list. Procedure examples from ATT&CK `relationship` objects
+are still not indexed in the MVP.
 
 ## What's NOT in GaRAG (see `docs/roadmap_to_poxekbook.md`)
 

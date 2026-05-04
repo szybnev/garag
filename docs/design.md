@@ -25,16 +25,24 @@ claim of being so. See `README.md` for the full disclaimer.
 ## 2. Corpus
 
 Five sources, unified via `app.schemas.Document` into `data/raw/documents.parquet`
-(2 495 documents, 791 KB compressed). Rebuilt from scratch by `scripts/fetch_*.py`
-and `scripts/parse_sources.py` — **no raw data is shipped in this repo**.
+(2,544 documents in the current local rebuild). Rebuilt from scratch by
+`scripts/fetch_*.py` and `scripts/parse_sources.py` — **no raw data is shipped in
+this repo**.
 
 | Source | Documents | Format | License |
 |---|---|---|---|
-| MITRE ATT&CK Enterprise | 1 705 | STIX 2.1 JSON | Apache 2.0 |
-| MITRE ATLAS | 275 | YAML | Apache 2.0 |
+| MITRE ATT&CK Enterprise | 1,751 | STIX 2.1 JSON | Apache 2.0 |
+| MITRE ATLAS | 278 | YAML | Apache 2.0 |
 | HackerOne public reports | 500 | CSV (**metadata only**) | see §2.1 |
 | OWASP Top 10 (2021, EN) | 10 | Markdown | CC BY-SA 4.0 |
 | man pages (5 security tools) | 5 | plain text | mixed |
+
+Current processed chunk count is 3,900. MITRE ATT&CK technique and
+sub-technique documents are loaded from the active Enterprise STIX bundle.
+Tactic documents, for example `TA0010 Exfiltration`, are enriched from
+`kill_chain_phases` with their related technique list so tactic-level questions
+can retrieve the category page. ATT&CK procedure examples stored as
+`relationship` objects are not indexed in the MVP.
 
 ### 2.1 HackerOne disclaimer
 
@@ -66,7 +74,7 @@ runtime NFR measurements are reported under `evaluation/reports/`.
 | Generation faithfulness | ≥ 0.80 | LLM-as-judge (`qwen3.5:35b`), 0–1 scale |
 | Generation correctness | ≥ 0.70 | LLM-as-judge vs reference answer |
 | Citation accuracy | ≥ 0.85 | Fraction of citations pointing to returned chunks |
-| Peak VRAM (without LLM) | ≤ 6 GB | bge-m3 + bge-reranker-v2-m3 together |
+| Peak VRAM (without LLM) | ≤ 6 GB | local retrieval stack excluding the LM Studio-hosted generator |
 | Peak VRAM (with LLM) | ≤ 28 GB | Headroom on the RTX 5090 (32 GB) |
 
 `scripts.nfr_benchmark` measures the real HTTP `/query` path for latency and
@@ -92,9 +100,9 @@ increments 2–3 tighten each threshold independently.
 - It uses `/v1/embeddings`, so the app can reuse standard OpenAI-compatible
   client semantics and mock that path in unit tests.
 
-`BAAI/bge-m3` remains implemented as a FlagEmbedding fallback. The retrieval
-tuning table above was produced with the earlier bge-m3 dense index; after the
-qwen3 embedding switch, Qdrant must be rebuilt before runtime tests.
+`BAAI/bge-m3` remains implemented as a FlagEmbedding fallback. The current
+retrieval snapshot in `evaluation/reports/retrieval_report.md` was produced
+after rebuilding Qdrant with the qwen3 embedding model.
 
 ### 4.2 Sparse retrieval: `rank_bm25`, not bge-m3 learned sparse
 
@@ -107,6 +115,11 @@ qwen3 embedding switch, Qdrant must be rebuilt before runtime tests.
 
 bge-m3 learned sparse is a PoxekBook increment 2 item and is explicitly not
 tried in MVP.
+
+The BM25 index includes searchable metadata in addition to chunk text:
+`chunk_id`, `doc_id`, source, and title. This keeps exact ATT&CK IDs such as
+`T1134` and tactic IDs such as `TA0010` retrievable even when the natural
+language chunk body is short.
 
 ### 4.3 Reranker: `BAAI/bge-reranker-v2-m3`
 
@@ -125,8 +138,9 @@ implemented as a fallback provider because earlier generator evaluation used
 **Non-obvious wrinkles:**
 - qwen3.5 uses a thinking mode. Through the OpenAI-compatible endpoint the
   `content` field can come back empty while the actual answer sits in
-  `thinking`. We work around this by calling the native `/api/chat` endpoint
-  with `{"think": false}` in the payload — verified on hw12-advanced-rag.
+  `thinking`. The Ollama fallback works around this by calling the native
+  `/api/chat` endpoint with `{"think": false}` in the payload — verified on
+  hw12-advanced-rag.
 - Ollama's `format=<json_schema>` structured output reliably drops `required`
   fields on qwen3.5:35b MoE when nested objects have too many required keys
   (observed d9: 20/20 golden queries failed Pydantic validation on
@@ -176,19 +190,21 @@ Raw grid results and per-config breakdown live in
 `evaluation/results/gen_params_grid.json` and
 `experiments/04_generation_params.ipynb`.
 
-### 4.5 LLM-as-judge: `qwen3.5:35b` (same model as generator)
+### 4.5 LLM-as-judge: `qwen3.5:35b`
 
 Originally planned as a separate (larger) model than the generator to reduce
-the "grading your own homework" bias. On the d9 host `qwen3.5:35b` is the
-largest Ollama-available model, so generator and judge share the same
-checkpoint. We accept this compromise for the MVP with two mitigations:
+the "grading your own homework" bias. Generation evaluation originally used
+`qwen3.5:35b` for both generation and judging; the runtime generator now
+defaults to `qwen/qwen3.6-35b-a3b` through LM Studio, while the judge remains
+the Ollama-hosted `qwen3.5:35b` fallback model. Treat older generation reports
+with the caveat below:
 
 1. **Self-bias caveat** is printed verbatim in the header of every report
    produced by `scripts/eval_generation.py` — literature on LLM-as-judge
    (Zheng et al. 2023) reports 5-15 % upward bias on faithfulness when the
    generator and judge models agree on a checkpoint. Treat absolute numbers
-   as upper bounds and rely on per-category deltas + manual 10-sample review
-   for qualitative signal.
+   as upper bounds for those older runs and rely on per-category deltas +
+   manual 10-sample review for qualitative signal.
 2. **Cross-model rerun** (GPT-4o or Claude as judge) is deferred to
    PoxekBook increment 2 alongside the 10-LLM benchmark.
 
@@ -200,7 +216,7 @@ Judge is called with `temperature=0.0`, `top_p=1.0`, `num_predict=300`,
 Single strategy for MVP, full justification in
 `experiments/01_chunking_choice.ipynb`. TL;DR:
 
-- 3 779 chunks from 2 495 documents (average fan-out ×1.5)
+- 3,900 chunks from 2,544 documents (average fan-out ×1.5)
 - Median 148 tokens per chunk, target 256 — well-utilised budget
 - Recursive hierarchy (paragraph → sentence → punctuation → whitespace)
   respects semantic boundaries better than fixed-size splitting
