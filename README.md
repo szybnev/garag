@@ -51,6 +51,13 @@ Full design rationale — NFR table with targets, choice of local models/`Recurs
 - **Security:** `garak` probes + LLM Guard guardrails are planned
 - **Python:** 3.12, uv + ruff + ty
 
+## Generator model comparison
+
+During local experiments, the generator was compared across
+`qwen/qwen3.6-35b-a3b`, `ibm/granite-3.2-8b`, `ibm/granite-4-h-tiny`, and
+`zai-org/glm-4.7-flash`. In the current run, `zai-org/glm-4.7-flash` showed
+the best practical results and is therefore the runtime default.
+
 ## Quickstart
 
 Prerequisites: Docker, Docker Compose, and LM Studio serving
