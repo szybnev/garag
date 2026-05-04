@@ -1,9 +1,10 @@
 """Build the sparse BM25 index for GaRAG.
 
-Reads `data/processed/chunks.parquet`, tokenises each chunk's text with a
-small regex + nltk English stopwords, and pickles a `BM25Okapi` together
-with the position → `chunk_id` mapping. d5 (`app/rag/retriever_sparse.py`)
-loads this pickle and uses it for sparse retrieval.
+Reads `data/processed/chunks.parquet`, tokenises each chunk's searchable text
+with a small regex + nltk English stopwords, and pickles a `BM25Okapi`
+together with the position → `chunk_id` mapping. d5
+(`app/rag/retriever_sparse.py`) loads this pickle and uses it for sparse
+retrieval.
 
 The default `k1=1.5` and `b=0.75` come straight from `rank_bm25`. d6
 (`scripts/tune_bm25.py`, bid `garag-zqc.15`) sweeps `k1`, `b`, and
@@ -46,6 +47,23 @@ def tokenize(text: str, stop: set[str]) -> list[str]:
     return [t for t in _WORD_RE.findall(text) if t not in stop]
 
 
+def searchable_text(row: pd.Series) -> str:
+    """Join stable identifiers with chunk text for exact-ID sparse retrieval."""
+    source = str(row.get("source", ""))
+    return "\n".join(
+        str(value)
+        for value in (
+            row.get("chunk_id", ""),
+            row.get("doc_id", ""),
+            source,
+            source.replace("_", " "),
+            row.get("title", ""),
+            row.get("text", ""),
+        )
+        if pd.notna(value) and str(value).strip()
+    )
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--input", type=Path, default=CHUNKS_FILE)
@@ -65,7 +83,7 @@ def main() -> None:
     print(f"[stopwords] nltk english, {len(stop)} terms")
 
     t0 = time.perf_counter()
-    tokenized = [tokenize(text, stop) for text in df["text"].tolist()]
+    tokenized = [tokenize(searchable_text(row), stop) for _, row in df.iterrows()]
     print(f"[tokenize] {time.perf_counter() - t0:.1f}s")
 
     empty = sum(1 for tokens in tokenized if not tokens)

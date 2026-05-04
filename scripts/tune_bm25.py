@@ -20,7 +20,7 @@ import pandas as pd
 import pytrec_eval
 from rank_bm25 import BM25Okapi
 
-from scripts.build_bm25 import _ensure_stopwords, tokenize
+from scripts.build_bm25 import _ensure_stopwords, searchable_text, tokenize
 
 CHUNKS_FILE = Path(__file__).resolve().parents[1] / "data" / "processed" / "chunks.parquet"
 BM25_PKL = Path(__file__).resolve().parents[1] / "data" / "index" / "bm25.pkl"
@@ -76,7 +76,7 @@ def main() -> None:
     print(f"[load] {len(golden)} golden queries")
 
     stop = _ensure_stopwords()
-    tokenized = [tokenize(text, stop) for text in df["text"].tolist()]
+    tokenized = [tokenize(searchable_text(row), stop) for _, row in df.iterrows()]
     tokenized = [t or ["__empty__"] for t in tokenized]
     chunk_ids: list[str] = df["chunk_id"].tolist()
 

@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from scripts.build_bm25 import tokenize
+import pandas as pd
+
+from scripts.build_bm25 import searchable_text, tokenize
 
 STOP = {"the", "a", "an", "is", "and", "of", "in", "for", "to"}
 
@@ -33,6 +35,27 @@ def test_keeps_alphanumeric_words() -> None:
     tokens = tokenize("CVE-2023-1234 affects bge-m3 v1", STOP)
     assert "cve-2023-1234" in tokens
     assert "bge-m3" in tokens
+
+
+def test_searchable_text_includes_chunk_identifiers_and_title() -> None:
+    row = pd.Series(
+        {
+            "chunk_id": "mitre_attack:T1134::0",
+            "doc_id": "mitre_attack:T1134",
+            "source": "mitre_attack",
+            "title": "Access Token Manipulation",
+            "text": "Adversaries may modify access tokens.",
+        }
+    )
+
+    tokens = tokenize(searchable_text(row), STOP)
+
+    assert "t1134" in tokens
+    assert "mitre" in tokens
+    assert "attack" in tokens
+    assert "access" in tokens
+    assert "token" in tokens
+    assert "manipulation" in tokens
 
 
 def test_empty_input() -> None:

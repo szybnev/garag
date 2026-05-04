@@ -286,6 +286,29 @@ def test_generate_drops_ungrounded_citations() -> None:
     assert result.used_chunks == ["mitre_attack:T0::0"]
 
 
+def test_generate_deduplicates_used_chunks() -> None:
+    payload_json = json.dumps(
+        {
+            "answer": "Grounded answer.",
+            "citations": [{"chunk_id": "mitre_attack:T0::0", "quote": "real quote"}],
+            "confidence": 0.8,
+            "used_chunks": [
+                "mitre_attack:T0::0",
+                "mitre_attack:T0::0",
+                "mitre_attack:HALLUCINATED::9",
+            ],
+        }
+    )
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"message": {"content": payload_json}})
+
+    gen = _make_generator(httpx.MockTransport(handler))
+    result = gen.generate("q", [_chunk("mitre_attack:T0::0")])
+
+    assert result.used_chunks == ["mitre_attack:T0::0"]
+
+
 def test_generate_falls_back_to_used_chunks_when_citations_are_empty() -> None:
     payload_json = json.dumps(
         {

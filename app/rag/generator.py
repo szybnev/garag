@@ -182,7 +182,7 @@ def _hydrate_response(
             for chunk in fallback_chunks[:3]
         )
     valid_ids = {c.chunk_id for c in hydrated}
-    used = [cid for cid in generated.used_chunks if cid in valid_ids]
+    used = list(dict.fromkeys(cid for cid in generated.used_chunks if cid in valid_ids))
     if not used:
         used = [c.chunk_id for c in hydrated]
     return QueryResponse(
