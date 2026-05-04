@@ -71,7 +71,7 @@ def _make_generator(
 def _make_openai_generator(handler: httpx.MockTransport) -> Generator:
     return Generator(
         base_url="http://lmstudio.test:1234/v1",
-        model="ibm/granite-3.2-8b",
+        model="ibm/granite-4-h-tiny",
         provider="openai_compat",
         client=httpx.Client(transport=handler),
     )
@@ -148,7 +148,7 @@ def test_generate_openai_compat_payload_and_response() -> None:
     client = httpx.Client(transport=httpx.MockTransport(handler))
     gen = Generator(
         base_url="http://lmstudio.test:1234/v1",
-        model="ibm/granite-3.2-8b",
+        model="ibm/granite-4-h-tiny",
         provider="openai_compat",
         client=client,
     )
@@ -156,7 +156,7 @@ def test_generate_openai_compat_payload_and_response() -> None:
 
     assert result.confidence == pytest.approx(0.9)
     payload = payloads[0]
-    assert payload["model"] == "ibm/granite-3.2-8b"
+    assert payload["model"] == "ibm/granite-4-h-tiny"
     assert payload["stream"] is False
     assert payload["max_tokens"] == gen.num_predict
     assert payload["response_format"]["type"] == "json_schema"

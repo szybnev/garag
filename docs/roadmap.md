@@ -6,7 +6,7 @@ required for that score lives in this roadmap.
 
 ## What is already in GaRAG v0.1.0
 
-- Single hybrid RAG pipeline: dense (`text-embedding-qwen3-embedding-0.6b`) + sparse (`rank_bm25`) → alpha fusion (`alpha=0.3`) → `bge-reranker-v2-m3` → `ibm/granite-3.2-8b`
+- Single hybrid RAG pipeline: dense (`text-embedding-qwen3-embedding-0.6b`) + sparse (`rank_bm25`) → alpha fusion (`alpha=0.3`) → `bge-reranker-v2-m3` → `ibm/granite-4-h-tiny`
 - Single chunking strategy (`RecursiveChunker 256 gpt2`) with theoretical justification
 - Single LLM for generation, single LLM (`qwen3.5:35b`) as judge
 - 50-item golden set, categories: factual, tool usage, multi-hop
