@@ -165,6 +165,9 @@ uv run python -m scripts.build_bm25 --k1 0.8 --b 0.5
 uv run python -m scripts.eval_retrieval --alpha 0.3 --rerank
 uv run python -m scripts.tune_bm25
 uv run python -m scripts.tune_fusion
+
+# Local vLLM generator on single RTX 5090
+scripts/run_vllm_glm47_flash.sh
 ```
 
 Run commands through `uv run`; do not activate the virtualenv with `source`.
@@ -229,6 +232,16 @@ Reference paths:
   collected `source_chunk_id`s before sampling.
 - **Use `pytrec-eval-terrier`, not `pytrec-eval`.** The original package fails to
   compile against modern GCC.
+- **GLM-4.7-Flash on local Docker vLLM / RTX 5090.** Use
+  `scripts/run_vllm_glm47_flash.sh`. The working single-GPU setup uses
+  `vllm/vllm-openai:nightly`, `bitsandbytes` quantization, `fp8` KV cache,
+  `max_model_len=4096`, and `VLLM_MLA_DISABLE=1`. BF16 and online
+  `fp8_per_tensor` did not fit into one 32 GB RTX 5090. Without
+  `VLLM_MLA_DISABLE=1`, the first chat request can crash in the Triton MLA
+  decode kernel with a shared-memory `OutOfResources` error. Do not add
+  `--reasoning-parser glm45` for the GaRAG OpenAI-compatible path unless the
+  caller intentionally reads `message.reasoning`; it can leave
+  `message.content` as `null`.
 
 ## Code Conventions
 
