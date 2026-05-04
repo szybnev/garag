@@ -8,7 +8,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.config import settings
-from app.main import _format_sources, _target_generator_model_label, build_pipeline, create_app
+from app.main import _format_sources, _target_generator_model_value, build_pipeline, create_app
 from app.rag.generator import GenerationError
 from app.schemas import Citation, QueryResponse
 
@@ -91,26 +91,22 @@ def test_format_sources_handles_empty_citations() -> None:
     assert _format_sources([]) == "No explicit sources were returned by the generator."
 
 
-def test_target_generator_model_label_uses_openai_model(
+def test_target_generator_model_value_uses_openai_model(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(settings, "llm_provider", "openai_compat")
     monkeypatch.setattr(settings, "openai_model", "ibm/granite-3.2-8b")
 
-    assert _target_generator_model_label() == (
-        "**Target generator model:** `ibm/granite-3.2-8b` (`openai_compat`)"
-    )
+    assert _target_generator_model_value() == "ibm/granite-3.2-8b (openai_compat)"
 
 
-def test_target_generator_model_label_uses_ollama_model(
+def test_target_generator_model_value_uses_ollama_model(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(settings, "llm_provider", "ollama")
     monkeypatch.setattr(settings, "ollama_model", "qwen3.5:35b")
 
-    assert _target_generator_model_label() == (
-        "**Target generator model:** `qwen3.5:35b` (`ollama`)"
-    )
+    assert _target_generator_model_value() == "qwen3.5:35b (ollama)"
 
 
 def test_query_rejects_invalid_payload(fake_pipeline: _FakePipeline) -> None:
