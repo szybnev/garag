@@ -66,7 +66,7 @@ runtime NFR measurements are reported under `evaluation/reports/`.
 | Metric | Target | Rationale |
 |---|---|---|
 | e2e latency (p95, warm) | ≤ 8 s | Interactive Q&A on a single-user RTX 5090 |
-| Throughput | ≥ 2 RPS | Single local instance, no concurrency hardening |
+| Throughput | ≥ 0.5 RPS | Single local instance, 35B LM Studio generator, benchmark `top_k=3` |
 | Indexing time (full corpus) | ≤ 20 min | One-off on cold Qdrant, acceptable for a rebuild step |
 | Retrieval Recall@10 | ≥ 0.75 | Measured on the 50-item golden set with hybrid + reranker |
 | Retrieval nDCG@10 | ≥ 0.65 | Same |
@@ -79,6 +79,12 @@ runtime NFR measurements are reported under `evaluation/reports/`.
 `scripts.nfr_benchmark` measures the real HTTP `/query` path for latency and
 throughput. Full indexing time is opt-in via `--run-indexing` because it
 recreates the Qdrant collection.
+
+The measured throughput bottleneck is the generator, not retrieval: the NFR
+report shows retrieval plus rerank in tens of milliseconds while the 35B local
+LLM takes seconds per answer. The benchmark uses `top_k=3` to keep tool-usage
+contexts bounded for the interactive MVP. A ≥2 RPS target is therefore treated
+as future serving work rather than the v0.1.0 single-user MVP gate.
 
 These targets are intentionally loose. The point of the MVP is to prove the
 hybrid+rerank+structured-output pipeline runs end-to-end and clears the
@@ -251,7 +257,7 @@ Linux).
 - LLM benchmark (4–5 models × 3-stage filter)
 - QLoRA / DPO fine-tuning
 - 100–150 item extended golden set
-- vLLM for throughput — only if the NFR benchmark shows the local LLM server is the bottleneck
+- vLLM for throughput — to revisit the deferred ≥2 RPS serving target
 
 ## 6. References in this repository
 

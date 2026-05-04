@@ -157,6 +157,7 @@ def test_render_report_includes_targets_and_serializable_raw(tmp_path: Path) -> 
         ReportInput(
             api_url="http://api.test",
             golden=tmp_path / "golden.jsonl",
+            top_k=3,
             health={"status": "ok", "pipeline_loaded": True},
             latency_summary=_summarise(latency_rows),
             throughput_summary=_summarise(throughput_rows, elapsed_s=0.4),
@@ -167,6 +168,7 @@ def test_render_report_includes_targets_and_serializable_raw(tmp_path: Path) -> 
     )
 
     assert "# NFR benchmark" in report
+    assert "Top K: `3`" in report
     assert "p95 e2e latency" in report
     assert "Throughput" in report
     assert "Indexing time" in report
