@@ -82,6 +82,8 @@ bd sync
 Rules:
 
 - Always use `bd` for task and issue tracking.
+- On the first response in a new session, run `bd ready` and show the ready
+  task list to the user before starting implementation work.
 - File issues for unfinished follow-up work before ending a session.
 - Close completed issues before syncing.
 - Work is not complete until `bd sync` and `git push` both succeed.
