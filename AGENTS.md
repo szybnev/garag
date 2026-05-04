@@ -1,40 +1,246 @@
 # Agent Instructions
 
-This project uses **bd** (beads) for issue tracking. Run `bd onboard` to get started.
+Guidance for Codex GPT-5.5 and other coding agents working in this repository.
+Keep this file practical: it should help the next agent act correctly without
+having to reconstruct project context from `CLAUDE.md`.
 
-## Quick Reference
+## Project Context
+
+**GaRAG** is the academic MVP slice of a larger PoxekBook vision, submitted as the
+final project for the **GigaSchool LLM-Engineer course (track A)**.
+
+It is a hybrid retrieval-augmented generation system over a cybersecurity corpus:
+MITRE ATT&CK, MITRE ATLAS, OWASP Top 10, public HackerOne reports as metadata
+only, and security tool man pages.
+
+This is an **academic project**, **not production-ready**. The README disclaimer
+must stay intact in any rewrite.
+
+The full development plan lives at
+`~/kurs/gigaschool/docs/plans/radiant-questing-sutton.md`. It is the source of
+truth for the d1-d15 breakdown, NFR thresholds, and the boundary between GaRAG
+and the private PoxekBook continuation.
+
+## Current Snapshot
+
+| Item | Value |
+|---|---|
+| Plan day completed | d8 |
+| Target release | `v0.1.0-garag` on 2026-04-24 |
+| Open public repo | https://github.com/szybnev/garag |
+| Private continuation | https://github.com/szybnev/poxekbook |
+| bd issue tracker | `garag-zqc` epic + 28 child issues, `.1`-`.16` closed |
+| Test suite | 56 tests passing, coverage 63% (60% threshold) |
+| Last latency snapshot | retrieval p95 about 4.1 s with reranker |
+
+Latest retrieval metrics on 50 golden queries:
+
+| Method | Recall@10 | nDCG@10 | MAP |
+|---|---:|---:|---:|
+| dense (bge-m3) | 0.8600 | 0.7261 | 0.6855 |
+| sparse (BM25 tuned k1=0.8, b=0.5) | 0.8800 | 0.7844 | 0.7532 |
+| hybrid alpha=0.3 | 0.8800 | 0.7890 | 0.7589 |
+| hybrid + reranker (current default) | 0.8600 | 0.8089 | 0.7933 |
+
+NFR thresholds from `docs/design.md` section 3: Recall@10 >= 0.75 and nDCG@10
+>= 0.65. Both are cleared. The weak category is `tool_usage`; the reranker stays
+enabled despite latency cost because it improves tool_usage MAP.
+
+## Codex Operating Rules
+
+- Answer the user in Russian.
+- If the task is clear, act without asking for confirmation.
+- If the task is ambiguous, ask 1-2 concrete questions.
+- If you do not know, say "Не знаю" and ask for the missing context.
+- If you are not sure, say "Не уверен в ответе" and explain what is uncertain.
+- Change only files relevant to the current task.
+- Prefer minimal, root-cause fixes over temporary workarounds.
+- Do not refactor neighboring code unless explicitly requested.
+- Use `rg` / `rg --files` for search.
+- Use `apply_patch` for manual edits.
+- Use Context7 for current library documentation when changing library usage.
+- Use WebSearch only when internet research is needed.
+- Before marking work done, verify it with tests, linters, builds, or an explicit
+  docs-only check.
+- For non-trivial changes, briefly consider whether there is a simpler design.
+
+## Issue Tracking With bd
+
+This project uses **bd** (beads) for issue tracking. Run `bd onboard` or
+`bd prime` for workflow context.
+
+Quick reference:
 
 ```bash
-bd ready              # Find available work
-bd show <id>          # View issue details
-bd update <id> --status in_progress  # Claim work
-bd close <id>         # Complete work
-bd sync               # Sync with git
+bd ready
+bd show <id>
+bd update <id> --status in_progress
+bd create "Title" --type task --priority 2
+bd close <id> -r "reason"
+bd sync
 ```
 
-## Landing the Plane (Session Completion)
+Rules:
 
-**When ending a work session**, you MUST complete ALL steps below. Work is NOT complete until `git push` succeeds.
+- Always use `bd` for task and issue tracking.
+- File issues for unfinished follow-up work before ending a session.
+- Close completed issues before syncing.
+- Work is not complete until `bd sync` and `git push` both succeed.
 
-**MANDATORY WORKFLOW:**
+## Landing the Plane
 
-1. **File issues for remaining work** - Create issues for anything that needs follow-up
-2. **Run quality gates** (if code changed) - Tests, linters, builds
-3. **Update issue status** - Close finished work, update in-progress items
-4. **PUSH TO REMOTE** - This is MANDATORY:
-   ```bash
-   git pull --rebase
-   bd sync
-   git push
-   git status  # MUST show "up to date with origin"
-   ```
-5. **Clean up** - Clear stashes, prune remote branches
-6. **Verify** - All changes committed AND pushed
-7. **Hand off** - Provide context for next session
+When ending a work session, complete all steps below.
 
-**CRITICAL RULES:**
-- Work is NOT complete until `git push` succeeds
-- NEVER stop before pushing - that leaves work stranded locally
-- NEVER say "ready to push when you are" - YOU must push
-- If push fails, resolve and retry until it succeeds
+1. File issues for remaining work.
+2. Run quality gates if code changed.
+3. Close finished `bd` issues or update their status.
+4. Push all committed changes:
 
+```bash
+git pull --rebase
+bd sync
+git push
+git status
+```
+
+5. Verify `git status` says the branch is up to date with origin.
+6. Hand off concise context for the next session.
+
+Never stop with local-only completed work. If push fails, resolve and retry.
+
+## Git Conventions
+
+- Commit messages must be in Russian.
+- Group changes into separate commits by purpose.
+- Match the existing style where useful: `feat(area):`, `chore(bd):`, `docs:`.
+- Main branch for PRs is `main`.
+- If `.gitlab-ci.yaml` exists, use `glab` for GitLab workflows.
+- If `.github/` exists, use `gh` for GitHub workflows.
+
+## Stack And Tuned Parameters
+
+| Area | Current choice |
+|---|---|
+| Python | 3.12, `uv`, ruff, ty |
+| Vector DB | Qdrant `garag_v1`, HNSW `m=16, ef_construct=200`, dim 1024, cosine |
+| Embedder | `BAAI/bge-m3`, dense head only, normalized, fp16 |
+| Sparse | `rank_bm25.BM25Okapi`, tuned `k1=0.8, b=0.5` + NLTK english stopwords |
+| Fusion | alpha-weighted min-max, tuned `alpha=0.3`; RRF k=60 also exists |
+| Reranker | `BAAI/bge-reranker-v2-m3`, cross-encoder, top-20 to top-5 |
+| Generator | `qwen3.5:35b` via Ollama `/api/chat` with `think=false` |
+| LLM-as-judge | `qwen3.5:35b`; self-bias caveat acknowledged for d13 |
+| Structured output | `app.schemas.QueryResponse.model_json_schema()` to Ollama `format` |
+| Web layer | FastAPI + Gradio, Docker Compose |
+| Observability | Prometheus + Grafana, anonymous viewer |
+| Security | `garak` probes + LLM Guard input/output guardrails |
+
+Runtime defaults must stay aligned across `app/config.py` and `.env.example`.
+
+## Quick Commands
+
+```bash
+# Install / sync
+uv sync
+make sync
+
+# Lint / typecheck / test
+make lint
+make format
+make test
+
+# Data pipeline
+docker compose up -d qdrant
+uv run python -m scripts.fetch_mitre_attack
+uv run python -m scripts.fetch_mitre_atlas
+uv run python -m scripts.fetch_owasp_top10
+uv run python -m scripts.fetch_hackerone_reports --limit 500
+uv run python -m scripts.fetch_man_pages
+uv run python -m scripts.parse_sources
+uv run python -m scripts.chunk_corpus
+uv run python -m scripts.build_qdrant
+uv run python -m scripts.build_bm25
+
+# Evaluation
+uv run python -m scripts.eval_retrieval --alpha 0.3 --rerank
+uv run python -m scripts.tune_bm25
+uv run python -m scripts.tune_fusion
+```
+
+Run commands through `uv run`; do not activate the virtualenv with `source`.
+
+## Architecture Map
+
+```text
+POST /query (FastAPI, QueryRequest)
+  -> HybridRetriever in app/rag/pipeline.py
+     -> DenseRetriever: bge-m3 + Qdrant query_points
+     -> SparseRetriever: rank_bm25 pickle
+     -> alpha-weighted fusion, alpha=0.3
+     -> Reranker: bge-reranker-v2-m3, top-20 to top-5
+  -> Generator in app/rag/generator.py
+     -> qwen3.5:35b via Ollama /api/chat
+     -> QueryResponse with answer, citations, confidence
+```
+
+Reference paths:
+
+| Path | Purpose |
+|---|---|
+| `app/schemas.py` | `Document`, `Chunk`, `Citation`, `QueryRequest`, `QueryResponse` |
+| `app/config.py` | `pydantic-settings` runtime config |
+| `app/rag/pipeline.py` | `HybridRetriever` orchestrator |
+| `app/rag/embedder.py` | bge-m3 wrapper |
+| `app/rag/retriever_dense.py` | Qdrant `query_points` |
+| `app/rag/retriever_sparse.py` | BM25Okapi pickle loader |
+| `app/rag/fusion.py` | RRF and alpha-weighted fusion |
+
+## Sharp Edges
+
+- **qwen3.5 thinking mode.** The OpenAI-compatible endpoint can return empty
+  `content` with the answer in `thinking`. Use native Ollama `/api/chat` with
+  `{"think": false}`.
+- **Ollama structured output on MoE qwen3.5 is leaky.** The full nested
+  `QueryResponse` schema caused missing `citations[].source`. The generator asks
+  only for `chunk_id` and `quote`, then hydrates `source` and `url` from chunks.
+  Do not expand the LLM-side schema without re-running
+  `scripts/validate_generator.py`.
+- **Ollama lives outside Docker Compose.** Compose reaches it through
+  `http://host.docker.internal:11434` with `extra_hosts`. Host scripts must use
+  `OLLAMA_URL=http://localhost:11434`.
+- **FlagEmbedding / FlagReranker can hang on Hugging Face ETag checks.** Use
+  `HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1` for CLI scripts that construct a
+  retriever or reranker.
+- **Qdrant ports are shifted.** Compose maps `6380:6333` and `6381:6334`.
+- **`qdrant_client.search` is gone.** Use
+  `client.query_points(collection_name, query=vector, ...)` and read `.points`.
+- **`BGEM3FlagModel.encode()` returns a Union.** Narrow with `isinstance` around
+  `out["dense_vecs"]`, as in `app/rag/embedder.py`.
+- **HackerOne is metadata-only.** Never fetch or persist disclosed report bodies.
+- **Golden set deterministic dedup.** `scripts/build_golden.py` excludes already
+  collected `source_chunk_id`s before sampling.
+- **Use `pytrec-eval-terrier`, not `pytrec-eval`.** The original package fails to
+  compile against modern GCC.
+
+## Code Conventions
+
+- Modern Python everywhere.
+- `[tool.ty.environment]`, never `[tool.ty]`.
+- `ruff select = ["ALL"]` with explicit ignores.
+- `[dependency-groups]` instead of `[project.optional-dependencies]`.
+- Use `uv add <pkg>` for dependencies; do not hand-edit dependency lists.
+- Type-narrow at framework boundaries (`FlagEmbedding`, `qdrant-client`,
+  `pickle.load`) so downstream code stays clean.
+- Tests use mocks for retrievers. See `tests/test_pipeline.py`.
+- Smoke and integration coverage live in notebooks, not pytest.
+- Notebooks should have minimal comments and reproduce final numbers.
+
+## Do Not Do
+
+- Do not commit `final-project/design-notebook.ipynb` or any reference to it.
+- Do not bring up `pre-commit`; if hooks are added later, use `prek`.
+- Do not switch to a `src/` layout.
+- Do not raise the test coverage threshold above 60% without adding retrieval
+  mock tests first.
+- Do not pull HackerOne report bodies.
+- Do not invent flags or environment variables outside `app/config.py` and
+  `.env.example`. Add new settings to `Settings` first.
