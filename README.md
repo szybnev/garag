@@ -28,7 +28,7 @@ query
                       [reranker bge-reranker-v2-m3]
                                       │
                                       ▼
-        [generator ibm/granite-4-h-tiny via LM Studio]
+        [generator zai-org/glm-4.7-flash via LM Studio]
                                       │
                                       ▼
         QueryResponse {answer, citations[], confidence, used_chunks[], latency_ms}
@@ -43,7 +43,7 @@ Full design rationale — NFR table with targets, choice of local models/`Recurs
 - **Sparse:** `rank_bm25` (k1/b tuned per corpus; searchable text includes
   `chunk_id`, `doc_id`, source, title, and chunk text)
 - **Reranker:** `BAAI/bge-reranker-v2-m3` cross-encoder
-- **LLM:** `ibm/granite-4-h-tiny` via LM Studio OpenAI-compatible API
+- **LLM:** `zai-org/glm-4.7-flash` via LM Studio OpenAI-compatible API
 - **LLM-as-judge:** `qwen3.5:35b` via Ollama fallback path
 - **API:** FastAPI + Pydantic structured output (`/health`, `/query`, `/metrics`)
 - **UI:** Gradio mounted at `/gradio`
@@ -54,7 +54,7 @@ Full design rationale — NFR table with targets, choice of local models/`Recurs
 ## Quickstart
 
 Prerequisites: Docker, Docker Compose, and LM Studio serving
-`ibm/granite-4-h-tiny` plus `text-embedding-qwen3-embedding-0.6b` on
+`zai-org/glm-4.7-flash` plus `text-embedding-qwen3-embedding-0.6b` on
 `http://localhost:1234/v1`.
 
 For the Docker app container, LM Studio must accept connections from the Docker

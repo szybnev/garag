@@ -95,9 +95,9 @@ def test_target_generator_model_value_uses_openai_model(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(settings, "llm_provider", "openai_compat")
-    monkeypatch.setattr(settings, "openai_model", "ibm/granite-4-h-tiny")
+    monkeypatch.setattr(settings, "openai_model", "zai-org/glm-4.7-flash")
 
-    assert _target_generator_model_value() == "ibm/granite-4-h-tiny (openai_compat)"
+    assert _target_generator_model_value() == "zai-org/glm-4.7-flash (openai_compat)"
 
 
 def test_target_generator_model_value_uses_ollama_model(

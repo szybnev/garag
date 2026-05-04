@@ -8,7 +8,7 @@ services:
       QDRANT_COLLECTION: garag_v1
       LLM_PROVIDER: openai_compat
       OPENAI_BASE_URL: http://host.docker.internal:1234/v1
-      OPENAI_MODEL: ibm/granite-4-h-tiny
+      OPENAI_MODEL: zai-org/glm-4.7-flash
       EMBEDDING_PROVIDER: openai_compat
       OPENAI_EMBEDDING_BASE_URL: http://host.docker.internal:1234/v1
       OPENAI_EMBEDDING_MODEL: text-embedding-qwen3-embedding-0.6b
