@@ -28,7 +28,7 @@ query
                       [reranker bge-reranker-v2-m3]
                                       │
                                       ▼
-        [generator glm-4.7-flash via vLLM]
+        [generator glm-4.7-flash via LM Studio]
                                       │
                                       ▼
         QueryResponse {answer, citations[], confidence, used_chunks[], latency_ms}
@@ -43,7 +43,7 @@ Full design rationale — NFR table with targets, choice of local models/`Recurs
 - **Sparse:** `rank_bm25` (k1/b tuned per corpus; searchable text includes
   `chunk_id`, `doc_id`, source, title, and chunk text)
 - **Reranker:** `BAAI/bge-reranker-v2-m3` cross-encoder on CPU
-- **LLM:** `glm-4.7-flash` served by vLLM from `zai-org/GLM-4.7-Flash`
+- **LLM:** `glm-4.7-flash` served by LM Studio from `zai-org/GLM-4.7-Flash`
 - **LLM-as-judge:** `qwen3.5:35b` via Ollama fallback path
 - **API:** FastAPI + Pydantic structured output (`/health`, `/query`, `/metrics`)
 - **UI:** Gradio mounted at `/gradio`
@@ -56,17 +56,29 @@ Full design rationale — NFR table with targets, choice of local models/`Recurs
 During local experiments, the generator was compared across
 `qwen/qwen3.6-35b-a3b`, `ibm/granite-3.2-8b`, `ibm/granite-4-h-tiny`, and
 `zai-org/glm-4.7-flash`. In the current run, GLM-4.7-Flash showed the best
-practical results and is therefore the runtime default, served locally by vLLM
-as `glm-4.7-flash`.
+practical results and is therefore the runtime default, served locally by
+LM Studio as `glm-4.7-flash`.
+
+GLM-4.7-Flash was also tested through Docker vLLM on a single RTX 5090. The
+working vLLM configuration required `bitsandbytes`, `fp8` KV cache, disabling
+MLA with `VLLM_MLA_DISABLE=1`, and removing `--reasoning-parser glm45` so that
+OpenAI-compatible responses populate `message.content`. Native BF16 did not fit
+in 32 GB VRAM, online `fp8_per_tensor` and `fp8_per_block` still failed during
+weight loading, and `--enforce-eager` was slower than the default CUDA graph
+mode. Even after these fixes, structured JSON generation stayed around
+15-16 tok/s, which was slower than the same target model in LM Studio. For this
+MVP, LM Studio is therefore the more efficient local inference backend for the
+target LLM; vLLM remains a serving experiment rather than the recommended
+runtime path.
 
 ## Quickstart
 
-Prerequisites: Docker, Docker Compose, vLLM serving `glm-4.7-flash` on
+Prerequisites: Docker, Docker Compose, LM Studio serving `glm-4.7-flash` on
 `http://localhost:8888/v1`, and Ollama serving `andersc/qwen3-embedding:0.6b`
 on `http://localhost:11434/v1`.
 
 For the Docker app container, both external model servers must accept
-connections from the Docker host gateway: vLLM at
+connections from the Docker host gateway: LM Studio at
 `http://host.docker.internal:8888/v1` for chat completions and Ollama at
 `http://host.docker.internal:11434/v1` for embeddings.
 
@@ -129,9 +141,9 @@ Qdrant collection and measure full indexing time. Add `--fail-on-target-miss`
 when using the benchmark as a CI-style gate.
 
 The throughput target is scoped to the single-user academic MVP with a local
-vLLM-hosted GLM generator and the NFR benchmark's `top_k=3` context budget. The
-≥2 RPS target is deferred to a serving-focused increment such as vLLM
-continuous batching or a smaller generator.
+LM Studio-hosted GLM generator and the NFR benchmark's `top_k=3` context budget.
+The ≥2 RPS target is deferred to a serving-focused increment such as a smaller
+generator or a different optimized serving stack.
 
 Latest retrieval snapshot on `golden_set_v1` after MITRE tactic enrichment and
 BM25 identifier indexing:
