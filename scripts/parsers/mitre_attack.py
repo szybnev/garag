@@ -100,8 +100,7 @@ def _techniques_by_phase(objects: Iterable[dict[str, Any]]) -> dict[str, list[tu
             if phase_name:
                 by_phase[str(phase_name)].append((ext_id, str(name)))
     return {
-        phase: sorted(techniques, key=_technique_sort_key)
-        for phase, techniques in by_phase.items()
+        phase: sorted(techniques, key=_technique_sort_key) for phase, techniques in by_phase.items()
     }
 
 

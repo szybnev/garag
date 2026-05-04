@@ -235,11 +235,7 @@ def _run_throughput_phase(
     started = time.perf_counter()
 
     def run_one(query: BenchmarkQuery) -> QueryMeasurement:
-        client = (
-            httpx.Client(timeout=timeout)
-            if client_factory is None
-            else client_factory()
-        )
+        client = httpx.Client(timeout=timeout) if client_factory is None else client_factory()
         with client:
             return _query_once(client, api_url, query, top_k=top_k)
 
@@ -389,9 +385,7 @@ def _render_report(data: ReportInput) -> str:
 
 def _mean_stage_ms(rows: list[QueryMeasurement], key: str) -> float:
     values = [
-        row.response_latency_ms[key]
-        for row in rows
-        if row.ok and key in row.response_latency_ms
+        row.response_latency_ms[key] for row in rows if row.ok and key in row.response_latency_ms
     ]
     if not values:
         return 0.0

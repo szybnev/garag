@@ -315,9 +315,7 @@ class Generator:
         for attempt in range(2):
             content = self._call_backend(client, query, chunks)
             if not content.strip():
-                raise GenerationError(
-                    f"{self.provider} returned empty message content"
-                )
+                raise GenerationError(f"{self.provider} returned empty message content")
             try:
                 generated = self._parse_generated_response(
                     content,
@@ -417,9 +415,7 @@ class Generator:
             resp = client.post(f"{self.base_url}/chat/completions", json=payload)
             resp.raise_for_status()
         except httpx.HTTPError as exc:
-            raise GenerationError(
-                f"OpenAI-compatible /chat/completions failed: {exc}"
-            ) from exc
+            raise GenerationError(f"OpenAI-compatible /chat/completions failed: {exc}") from exc
         body = resp.json()
         choices = body.get("choices") or []
         if not choices:
