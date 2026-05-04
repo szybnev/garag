@@ -40,6 +40,7 @@ import json
 from typing import TYPE_CHECKING, Any, Self, cast
 
 import httpx
+from json_repair import repair_json
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.config import settings
@@ -180,6 +181,10 @@ class GenerationError(RuntimeError):
     """Raised when the LLM backend returns an unusable response."""
 
 
+class _StructuredOutputParseError(GenerationError):
+    """Raised when malformed structured output could not be parsed or repaired."""
+
+
 class Generator:
     """qwen-family generator over native Ollama or OpenAI-compatible endpoints."""
 
@@ -277,36 +282,91 @@ class Generator:
     def generate(self, query: str, chunks: list[ScoredChunk]) -> QueryResponse:
         """Call the configured LLM backend and parse JSON into `QueryResponse`.
 
-        Raises `GenerationError` on HTTP failure or on JSON that cannot
-        be validated against the schema. The caller is responsible for
-        deciding whether to retry — we do not retry here because qwen3.5
-        with `seed=42` is deterministic, and flapping on the same input
-        usually means the prompt needs fixing, not another attempt.
+        Raises `GenerationError` on HTTP failure or on JSON that cannot be
+        validated against the schema. Malformed structured JSON gets one retry:
+        LM Studio can occasionally truncate schema-constrained content under
+        concurrent load, while valid-but-schema-wrong JSON still fails fast.
         """
         client = self._get_client()
+        last_parse_error: _StructuredOutputParseError | None = None
+        for attempt in range(2):
+            content = self._call_backend(client, query, chunks)
+            if not content.strip():
+                raise GenerationError(
+                    f"{self.provider} returned empty message content"
+                )
+            try:
+                generated = self._parse_generated_response(
+                    content,
+                    allow_repair=attempt > 0,
+                )
+            except _StructuredOutputParseError as exc:
+                last_parse_error = exc
+                continue
+            return _hydrate_response(generated, chunks)
+
+        if last_parse_error is not None:
+            raise last_parse_error
+        raise GenerationError(f"{self.provider} failed to produce structured output")
+
+    def _call_backend(
+        self,
+        client: httpx.Client,
+        query: str,
+        chunks: list[ScoredChunk],
+    ) -> str:
         if self.provider == "openai_compat":
-            content = self._call_openai_compat(client, query, chunks)
-        else:
-            content = self._call_ollama(client, query, chunks)
-        if not content.strip():
-            raise GenerationError(
-                f"{self.provider} returned empty message content"
-            )
+            return self._call_openai_compat(client, query, chunks)
+        return self._call_ollama(client, query, chunks)
+
+    def _parse_generated_response(
+        self,
+        content: str,
+        *,
+        allow_repair: bool,
+    ) -> _GeneratedResponse:
         try:
             parsed = json.loads(content)
         except json.JSONDecodeError as exc:
-            raise GenerationError(
-                f"{self.provider} response is not valid JSON despite schema prompt: {exc}\n"
-                f"content={content[:400]!r}"
-            ) from exc
+            if not allow_repair:
+                raise _StructuredOutputParseError(
+                    f"{self.provider} response is not valid JSON despite schema prompt: "
+                    f"{exc}\ncontent={content[:400]!r}"
+                ) from exc
+            parsed = self._repair_generated_json(content, exc)
         try:
-            generated = _GeneratedResponse.model_validate(parsed)
+            return _GeneratedResponse.model_validate(parsed)
         except ValueError as exc:
             raise GenerationError(
                 f"{self.provider} JSON does not match _GeneratedResponse schema: "
                 f"{exc}\nparsed={parsed!r}"
             ) from exc
-        return _hydrate_response(generated, chunks)
+
+    def _repair_generated_json(
+        self,
+        content: str,
+        parse_error: json.JSONDecodeError,
+    ) -> Any:
+        try:
+            repaired = repair_json(
+                content,
+                return_objects=True,
+                ensure_ascii=False,
+            )
+        except Exception as exc:
+            raise _StructuredOutputParseError(
+                f"{self.provider} response is not valid JSON despite schema prompt: "
+                f"{parse_error}\ncontent={content[:400]!r}"
+            ) from exc
+        try:
+            _GeneratedResponse.model_validate(repaired)
+        except ValueError as exc:
+            raise _StructuredOutputParseError(
+                f"{self.provider} response is not valid JSON despite schema prompt: "
+                f"{parse_error}; repair did not produce _GeneratedResponse: {exc}\n"
+                f"content={content[:400]!r}"
+            ) from parse_error
+        return repaired
 
     def _call_ollama(
         self,

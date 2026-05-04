@@ -32,6 +32,7 @@ dependencies = [
     "pytrec-eval-terrier>=0.5.7",
     "tqdm>=4.66",
     "llm-guard>=0.3.15",
+    "json-repair>=0.44.1",
 ]
 
 [dependency-groups]

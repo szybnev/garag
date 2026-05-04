@@ -68,6 +68,15 @@ def _make_generator(
     )
 
 
+def _make_openai_generator(handler: httpx.MockTransport) -> Generator:
+    return Generator(
+        base_url="http://lmstudio.test:1234/v1",
+        model="qwen/qwen3.6-35b-a3b",
+        provider="openai_compat",
+        client=httpx.Client(transport=handler),
+    )
+
+
 def test_generate_parses_valid_response() -> None:
     captured: dict[str, Any] = {}
 
@@ -156,13 +165,62 @@ def test_generate_openai_compat_payload_and_response() -> None:
     )
 
 
-def test_generate_raises_on_http_error() -> None:
+def test_generate_retries_openai_compat_after_malformed_json() -> None:
+    payloads: list[dict[str, Any]] = []
+    responses = [
+        _valid_response_json()[:-1],
+        _valid_response_json(),
+    ]
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        payloads.append(json.loads(request.content))
+        return httpx.Response(
+            200,
+            json={"choices": [{"message": {"content": responses[len(payloads) - 1]}}]},
+        )
+
+    gen = _make_openai_generator(httpx.MockTransport(handler))
+    result = gen.generate("q", [_chunk("mitre_attack:T0::0")])
+
+    assert result.confidence == pytest.approx(0.9)
+    assert len(payloads) == 2
+
+
+def test_generate_repairs_second_malformed_openai_compat_response() -> None:
+    calls = 0
+    responses = [
+        "not a json { at all",
+        _valid_response_json()[:-1],
+    ]
+
     def handler(_request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        content = responses[calls]
+        calls += 1
+        return httpx.Response(
+            200,
+            json={"choices": [{"message": {"content": content}}]},
+        )
+
+    gen = _make_openai_generator(httpx.MockTransport(handler))
+    result = gen.generate("q", [_chunk("mitre_attack:T0::0")])
+
+    assert result.used_chunks == ["mitre_attack:T0::0"]
+    assert calls == 2
+
+
+def test_generate_raises_on_http_error() -> None:
+    calls = 0
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
         return httpx.Response(500, json={"error": "boom"})
 
     gen = _make_generator(httpx.MockTransport(handler))
     with pytest.raises(GenerationError, match="Ollama /api/chat failed"):
         gen.generate("q", [_chunk("mitre_attack:T0::0")])
+    assert calls == 1
 
 
 def test_generate_raises_on_empty_content() -> None:
@@ -187,13 +245,18 @@ def test_generate_raises_on_invalid_json() -> None:
 
 
 def test_generate_raises_on_schema_mismatch() -> None:
+    calls = 0
+
     def handler(_request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
         bad = json.dumps({"answer": "hi", "confidence": 2.5})
         return httpx.Response(200, json={"message": {"content": bad}})
 
     gen = _make_generator(httpx.MockTransport(handler))
     with pytest.raises(GenerationError, match="does not match _GeneratedResponse schema"):
         gen.generate("q", [_chunk("mitre_attack:T0::0")])
+    assert calls == 1
 
 
 def test_generate_drops_ungrounded_citations() -> None:
