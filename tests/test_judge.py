@@ -112,6 +112,49 @@ def test_judge_payload_has_think_false_and_temperature_zero() -> None:
     assert "PowerShell" in payload["messages"][1]["content"]
 
 
+def test_openai_compat_judge_payload_and_response() -> None:
+    captured: dict[str, Any] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["url"] = str(request.url)
+        captured["payload"] = json.loads(request.content)
+        return httpx.Response(
+            200,
+            json={
+                "choices": [
+                    {
+                        "message": {
+                            "content": _valid_verdict_json(),
+                        }
+                    }
+                ]
+            },
+        )
+
+    judge = Judge(
+        provider="openai_compat",
+        base_url="http://lmstudio.test:1234/v1",
+        model="zai-org/glm-4.7-flash",
+        client=httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+    verdict = judge.judge(
+        question="q",
+        golden="g",
+        candidate=_candidate(),
+        chunks=[_chunk("mitre_attack:T0::0")],
+    )
+
+    assert verdict.faithfulness == 2
+    assert captured["url"] == "http://lmstudio.test:1234/v1/chat/completions"
+    payload = captured["payload"]
+    assert payload["model"] == "zai-org/glm-4.7-flash"
+    assert payload["stream"] is False
+    assert payload["temperature"] == 0.0
+    assert payload["max_tokens"] == 300
+    assert payload["response_format"]["type"] == "json_schema"
+    assert payload["response_format"]["json_schema"]["schema"] == _JudgeVerdict.model_json_schema()
+
+
 def test_judge_raises_on_schema_mismatch() -> None:
     """Out-of-range faithfulness must be rejected by Pydantic validator."""
 

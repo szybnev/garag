@@ -1,10 +1,9 @@
-"""LLM-as-judge — `qwen3.5:35b` via native Ollama `/api/chat`.
+"""LLM-as-judge — native Ollama or OpenAI-compatible local chat APIs.
 
-Mirror of `app.rag.generator.Generator`: same transport (native
-`/api/chat`), same `think=false` flag, same structured output pattern.
-The difference is the system prompt (a three-dimension rubric) and the
-output schema (`_JudgeVerdict`): three integer scores in `[0, 2]` plus
-a short rationale.
+Mirror of `app.rag.generator.Generator`: same structured output pattern,
+but with a three-dimension evaluator rubric. The output schema
+(`_JudgeVerdict`) has three integer scores in `[0, 2]` plus a short
+rationale.
 
 Why integer 0..2: binary 0/1 loses resolution on partially correct
 answers, 0-5 introduces spurious precision noise on qwen3.5, and the
@@ -20,8 +19,8 @@ reusable also makes it unit-testable via
 
 ## Self-bias caveat
 
-GaRAG uses `qwen3.5:35b` as both generator and judge because it is the
-largest Ollama-available model on the d9 host. Literature on LLM-as-judge
+GaRAG can run the judge either through Ollama (`qwen3.5:35b`) or through an
+OpenAI-compatible local server such as LM Studio. Literature on LLM-as-judge
 (e.g. Zheng et al. 2023 "Judging LLM-as-a-Judge") reports self-bias of
 5-15% on the faithfulness dimension when generator and judge share a
 checkpoint. We accept this for the MVP and document it on every report
@@ -31,7 +30,7 @@ this class feeds. Cross-model rerun (GPT-4o or Claude as judge) is deferred.
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING, Any, Self
+from typing import TYPE_CHECKING, Any, Literal, Self
 
 import httpx
 from pydantic import BaseModel, ConfigDict, Field
@@ -132,13 +131,14 @@ class JudgeError(RuntimeError):
 
 
 class Judge:
-    """qwen3.5 LLM-as-judge over the native Ollama `/api/chat` endpoint."""
+    """LLM-as-judge over native Ollama or OpenAI-compatible chat endpoints."""
 
     def __init__(  # noqa: PLR0913
         self,
         *,
         base_url: str | None = None,
         model: str | None = None,
+        provider: Literal["ollama", "openai_compat"] = "ollama",
         temperature: float = 0.0,
         top_p: float = 1.0,
         num_predict: int = 300,
@@ -147,8 +147,16 @@ class Judge:
         timeout: float = 300.0,
         client: httpx.Client | None = None,
     ) -> None:
-        self.base_url = (base_url or settings.ollama_url).rstrip("/")
-        self.model = model or settings.ollama_judge_model
+        self.provider = provider
+        if provider == "ollama":
+            self.base_url = (base_url or settings.ollama_url).rstrip("/")
+            self.model = model or settings.ollama_judge_model
+        elif provider == "openai_compat":
+            self.base_url = (base_url or settings.openai_base_url).rstrip("/")
+            self.model = model or settings.openai_model
+        else:
+            msg = f"unsupported judge provider: {provider}"
+            raise ValueError(msg)
         self.temperature = temperature
         self.top_p = top_p
         self.num_predict = num_predict
@@ -175,7 +183,28 @@ class Judge:
     def __exit__(self, *_exc: object) -> None:
         self.close()
 
-    def _build_payload(
+    def _messages(
+        self,
+        *,
+        question: str,
+        golden: str,
+        candidate: QueryResponse,
+        chunks: list[ScoredChunk],
+    ) -> list[dict[str, str]]:
+        return [
+            {"role": "system", "content": JUDGE_SYSTEM_PROMPT},
+            {
+                "role": "user",
+                "content": _build_judge_user_message(
+                    question=question,
+                    golden=golden,
+                    candidate=candidate,
+                    chunks=chunks,
+                ),
+            },
+        ]
+
+    def _build_ollama_payload(
         self,
         *,
         question: str,
@@ -185,18 +214,12 @@ class Judge:
     ) -> dict[str, Any]:
         return {
             "model": self.model,
-            "messages": [
-                {"role": "system", "content": JUDGE_SYSTEM_PROMPT},
-                {
-                    "role": "user",
-                    "content": _build_judge_user_message(
-                        question=question,
-                        golden=golden,
-                        candidate=candidate,
-                        chunks=chunks,
-                    ),
-                },
-            ],
+            "messages": self._messages(
+                question=question,
+                golden=golden,
+                candidate=candidate,
+                chunks=chunks,
+            ),
             "stream": False,
             "think": False,
             "format": _JudgeVerdict.model_json_schema(),
@@ -206,6 +229,36 @@ class Judge:
                 "top_p": self.top_p,
                 "num_predict": self.num_predict,
                 "seed": self.seed,
+            },
+        }
+
+    def _build_openai_payload(
+        self,
+        *,
+        question: str,
+        golden: str,
+        candidate: QueryResponse,
+        chunks: list[ScoredChunk],
+    ) -> dict[str, Any]:
+        return {
+            "model": self.model,
+            "messages": self._messages(
+                question=question,
+                golden=golden,
+                candidate=candidate,
+                chunks=chunks,
+            ),
+            "stream": False,
+            "temperature": self.temperature,
+            "top_p": self.top_p,
+            "max_tokens": self.num_predict,
+            "seed": self.seed,
+            "response_format": {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "judge_verdict",
+                    "schema": _JudgeVerdict.model_json_schema(),
+                },
             },
         }
 
@@ -219,7 +272,34 @@ class Judge:
     ) -> _JudgeVerdict:
         """Score the candidate answer against golden + context."""
         client = self._get_client()
-        payload = self._build_payload(
+        if self.provider == "openai_compat":
+            content = self._call_openai_compat(
+                client=client,
+                question=question,
+                golden=golden,
+                candidate=candidate,
+                chunks=chunks,
+            )
+        else:
+            content = self._call_ollama(
+                client=client,
+                question=question,
+                golden=golden,
+                candidate=candidate,
+                chunks=chunks,
+            )
+        return self._parse_content(content)
+
+    def _call_ollama(
+        self,
+        *,
+        client: httpx.Client,
+        question: str,
+        golden: str,
+        candidate: QueryResponse,
+        chunks: list[ScoredChunk],
+    ) -> str:
+        payload = self._build_ollama_payload(
             question=question, golden=golden, candidate=candidate, chunks=chunks
         )
         try:
@@ -235,6 +315,45 @@ class Judge:
                 "Ollama returned empty message.content — check that `think=false` "
                 f"is honored by the judge model (body keys: {sorted(body)})"
             )
+        return str(content)
+
+    def _call_openai_compat(
+        self,
+        *,
+        client: httpx.Client,
+        question: str,
+        golden: str,
+        candidate: QueryResponse,
+        chunks: list[ScoredChunk],
+    ) -> str:
+        payload = self._build_openai_payload(
+            question=question, golden=golden, candidate=candidate, chunks=chunks
+        )
+        try:
+            resp = client.post(f"{self.base_url}/chat/completions", json=payload)
+            resp.raise_for_status()
+        except httpx.HTTPError as exc:
+            raise JudgeError(f"OpenAI-compatible /v1/chat/completions failed: {exc}") from exc
+
+        body = resp.json()
+        choices = body.get("choices")
+        if not isinstance(choices, list) or not choices:
+            raise JudgeError("OpenAI-compatible judge response has no choices")
+        first = choices[0]
+        if not isinstance(first, dict):
+            raise JudgeError("OpenAI-compatible judge choice is not an object")
+        message = first.get("message")
+        if not isinstance(message, dict):
+            raise JudgeError("OpenAI-compatible judge choice has no message object")
+        content = message.get("content") or ""
+        if not str(content).strip():
+            raise JudgeError(
+                "OpenAI-compatible judge returned empty message.content "
+                f"(body keys: {sorted(body)})"
+            )
+        return str(content)
+
+    def _parse_content(self, content: str) -> _JudgeVerdict:
         try:
             parsed = json.loads(content)
         except json.JSONDecodeError as exc:

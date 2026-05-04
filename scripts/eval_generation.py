@@ -1,8 +1,8 @@
 """Full generation evaluation — LLM-as-judge + mechanical metrics.
 
 Closes `garag-zqc.19`. Runs the full `QueryPipeline` over
-`data/golden/golden_set_v1.jsonl`, then asks `Judge` (qwen3.5:35b)
-to score each candidate answer on three dimensions:
+`data/golden/golden_set_v1.jsonl`, then asks `Judge` to score each
+candidate answer on three dimensions:
 
 - **faithfulness** — claims supported by context
 - **correctness** — matches reference answer on substance
@@ -285,6 +285,9 @@ def main() -> int:  # noqa: PLR0915
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--limit", type=int, default=0, help="0 = full golden set")
     ap.add_argument("--no-rerank", action="store_true")
+    ap.add_argument("--judge-provider", choices=["ollama", "openai_compat"], default="ollama")
+    ap.add_argument("--judge-base-url", type=str, default=None)
+    ap.add_argument("--judge-model", type=str, default=None)
     args = ap.parse_args()
 
     golden = _load_golden(args.golden)
@@ -310,7 +313,11 @@ def main() -> int:  # noqa: PLR0915
 
     print("[run] judge phase (LLM-as-judge per parsed response)")
     t0 = time.perf_counter()
-    with Judge() as judge:
+    with Judge(
+        provider=args.judge_provider,
+        base_url=args.judge_base_url,
+        model=args.judge_model,
+    ) as judge:
         judge_model = judge.model
         rows = _run_judge_phase(
             responses=responses,
