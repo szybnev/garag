@@ -37,6 +37,14 @@ def test_keeps_alphanumeric_words() -> None:
     assert "bge-m3" in tokens
 
 
+def test_keeps_mitre_subtechnique_ids() -> None:
+    tokens = tokenize("T1059.001 uses PowerShell", STOP)
+
+    assert "t1059.001" in tokens
+    assert "t1059" not in tokens
+    assert "001" not in tokens
+
+
 def test_searchable_text_includes_chunk_identifiers_and_title() -> None:
     row = pd.Series(
         {
@@ -58,6 +66,23 @@ def test_searchable_text_includes_chunk_identifiers_and_title() -> None:
     assert "manipulation" in tokens
 
 
+def test_searchable_text_includes_mitre_subtechnique_id() -> None:
+    row = pd.Series(
+        {
+            "chunk_id": "mitre_attack:T1059.001::0",
+            "doc_id": "mitre_attack:T1059.001",
+            "source": "mitre_attack",
+            "title": "PowerShell",
+            "text": "Adversaries may abuse PowerShell commands.",
+        }
+    )
+
+    tokens = tokenize(searchable_text(row), STOP)
+
+    assert "t1059.001" in tokens
+    assert "powershell" in tokens
+
+
 def test_empty_input() -> None:
     assert tokenize("", STOP) == []
 
@@ -66,8 +91,11 @@ def test_only_punctuation() -> None:
     assert tokenize(",.;:!?", STOP) == []
 
 
+def test_word_trailing_period_is_not_part_of_token() -> None:
+    assert tokenize("foo. bar", STOP) == ["foo", "bar"]
+
+
 def test_short_single_letter_dropped() -> None:
-    # _WORD_RE requires at least 2 characters total ([a-z][a-z0-9_-]{1,})
     tokens = tokenize("a b c d hello world", STOP)
     assert "a" not in tokens
     assert "b" not in tokens

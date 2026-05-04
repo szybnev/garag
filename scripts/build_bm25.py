@@ -27,7 +27,7 @@ CHUNKS_FILE = Path(__file__).resolve().parents[1] / "data" / "processed" / "chun
 OUT_FILE = Path(__file__).resolve().parents[1] / "data" / "index" / "bm25.pkl"
 
 _URL_RE = re.compile(r"https?://\S+")
-_WORD_RE = re.compile(r"[a-z][a-z0-9_\-]{1,}")
+_WORD_RE = re.compile(r"[a-z]\d{4}(?:\.\d{3})?|[a-z][a-z0-9_\-]{1,}")
 
 
 def _ensure_stopwords() -> set[str]:
