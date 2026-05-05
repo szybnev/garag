@@ -78,6 +78,7 @@ class Settings(BaseSettings):
     guardrails_model: str = "granite-guardian-3.2-5b"
     guardrails_timeout_s: float = 30.0
     guardrails_fail_closed: bool = True
+    guardrails_block_groundedness: bool = False
 
 
 settings = Settings()

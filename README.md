@@ -176,7 +176,12 @@ BM25 identifier indexing:
 The guardrail model is `granite-guardian-3.2-5b`, served through the same
 LM Studio OpenAI-compatible API style as the generator. Unsafe user input is
 rejected before retrieval/generation with HTTP 400; unsafe generated output or
-guardrail backend failures are surfaced as HTTP 502.
+guardrail backend failures are surfaced as HTTP 502. Because this academic MVP
+serves benign MITRE/OWASP security education queries, input guardrails include a
+narrow deterministic pass-through for educational or defensive cybersecurity
+questions that do not request operational abuse. Groundedness checks still run
+on generated answers, but default to audit-only (`GUARDRAILS_BLOCK_GROUNDEDNESS=false`)
+to avoid blocking valid RAG answers on known Granite Guardian false positives.
 
 Run a focused local red-team scan against a running FastAPI app:
 

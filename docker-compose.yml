@@ -30,6 +30,7 @@ services:
       GUARDRAILS_MODEL: granite-guardian-3.2-5b
       GUARDRAILS_TIMEOUT_S: "30"
       GUARDRAILS_FAIL_CLOSED: "true"
+      GUARDRAILS_BLOCK_GROUNDEDNESS: "false"
       PROMETHEUS_ENABLED: "true"
       LOG_LEVEL: INFO
     ports:

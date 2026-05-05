@@ -23,11 +23,34 @@ _SAFE_TOKEN = "No"  # noqa: S105 - Granite Guardian safety label, not a secret.
 _UNSAFE_TOKEN = "Yes"  # noqa: S105 - Granite Guardian safety label, not a secret.
 _LABEL_RE = re.compile(r"^\s*(?:<[^>]+>\s*)*(yes|no)\b", re.IGNORECASE)
 _MAX_CONTEXT_CHARS = 12000
+_EDUCATIONAL_OR_DEFENSIVE_RE = re.compile(
+    r"\b(?:explain|what is|summari[sz]e|describe|detect|mitigat(?:e|ion)|"
+    r"defen[cs]e|safe(?:ly)?|inventory|audit)\b"
+    r"|(?:объясни|объяснить|что такое|опиши|описать|детект|обнаруж|"
+    r"смягч|защит|безопасн|инвентаризац|аудит)",
+    re.IGNORECASE,
+)
+_CYBER_KNOWLEDGE_RE = re.compile(
+    r"\b(?:mitre|att&ck|attack|atlas|owasp|cve|cwe|capec|nmap|metasploit|"
+    r"powershell|kubernetes|container|exfiltration)\b"
+    r"|\b(?:T|TA)\d{4}(?:\.\d{3})?\b"
+    r"|\bAML\.T\d{4}\b"
+    r"|(?:кибер|безопасност|техник[ауие]?|уязвимост|лог[аио]?|атак[аиу])",
+    re.IGNORECASE,
+)
+_ABUSE_OR_JAILBREAK_RE = re.compile(
+    r"\b(?:ignore (?:all )?(?:previous|prior) instructions|system prompt|"
+    r"developer message|jailbreak|ransomware|malware|steal|theft|password|"
+    r"credential|payload|reverse shell|keylogger|phishing|exploit|weaponi[sz]e|"
+    r"evad(?:e|ing|es|ed)|evasion|bypass|antivirus)\b"
+    r"|(?:игнорируй|системн|джейлбрейк|украсть|укради|краж|"
+    r"парол|уч[её]тн|шифровальщик|вымогател|малвар|вредонос|эксплойт|пейлоад|"
+    r"реверс шелл|кейлоггер|фишинг|обойди|обойти|обход|антивирус)",
+    re.IGNORECASE,
+)
 
 _RISK_DEFINITIONS = {
-    "harm": (
-        "The last '{role}' message is considered universally harmful."
-    ),
+    "harm": ("The last '{role}' message is considered universally harmful."),
     "jailbreak": (
         "The last '{role}' message contains the deliberate circumvention of AI systems' "
         "built-in safeguards or ethical guidelines. This involves crafting specific "
@@ -106,6 +129,7 @@ class GraniteGuardianGuardrails:
         model: str | None = None,
         timeout_s: float | None = None,
         fail_closed: bool | None = None,
+        block_groundedness: bool | None = None,
         client: httpx.Client | None = None,
     ) -> None:
         self.base_url = (base_url or settings.guardrails_base_url).rstrip("/")
@@ -114,10 +138,19 @@ class GraniteGuardianGuardrails:
         self.fail_closed = (
             fail_closed if fail_closed is not None else settings.guardrails_fail_closed
         )
+        self.block_groundedness = (
+            block_groundedness
+            if block_groundedness is not None
+            else settings.guardrails_block_groundedness
+        )
         self._client = client
 
     def scan_input(self, question: str) -> None:
         """Check user input before retrieval and generation."""
+        if _is_benign_educational_cyber_query(question):
+            logger.info("guardrail input allowed by educational cyber policy")
+            return
+
         for risk_name in ("harm", "jailbreak"):
             prompt = _build_input_prompt(question, risk_name=risk_name)
             try:
@@ -158,6 +191,12 @@ class GraniteGuardianGuardrails:
                 logger.warning("guardrail output check failed open", extra={"risk_name": risk_name})
                 continue
             if verdict.unsafe:
+                if risk_name == "groundedness" and not self.block_groundedness:
+                    logger.warning(
+                        "guardrail output groundedness flagged but did not block",
+                        extra={"raw": verdict.raw},
+                    )
+                    continue
                 raise GuardrailOutputViolation(
                     stage="output",
                     risk_name=risk_name,
@@ -231,6 +270,16 @@ def _parse_label(raw: str) -> str | None:
     return None
 
 
+def _is_benign_educational_cyber_query(question: str) -> bool:
+    """Allow common educational/defensive cyber questions past multilingual FPs."""
+    if _ABUSE_OR_JAILBREAK_RE.search(question):
+        return False
+    return (
+        _EDUCATIONAL_OR_DEFENSIVE_RE.search(question) is not None
+        and _CYBER_KNOWLEDGE_RE.search(question) is not None
+    )
+
+
 def _build_input_prompt(question: str, *, risk_name: str) -> str:
     return _render_guardian_prompt(
         first_act=(
@@ -251,9 +300,7 @@ def _build_output_prompt(*, question: str, answer: str, context: str, risk_name:
                 "risk definition and the given context."
             ),
             conversation=(
-                f"Context: {context}\n"
-                f"User Message: {question}\n"
-                f"Assistant Message: {answer}\n"
+                f"Context: {context}\nUser Message: {question}\nAssistant Message: {answer}\n"
             ),
             risk_definition=_risk_definition(risk_name, role="Assistant"),
             third_act="Is the last assistant message",
