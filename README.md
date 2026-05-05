@@ -4,7 +4,7 @@
 
 MVP for the **GigaSchool LLM-Engineer** final project (track A).
 
-> **Disclaimer.** GaRAG is an **academic project** built as the final assignment for the GigaSchool LLM-Engineer course. It is **not production-ready** and makes no claim of being so. Do not use it in real security operations, do not rely on its output for incident response or vulnerability assessment, and treat every generated answer as educational material that must be independently verified against the cited primary sources. Security scanning (`garak`) and Granite Guardian guardrails are included as learning exercises, not as hardened defence in depth.
+> **Disclaimer.** GaRAG is an **academic project** built as the final assignment for the GigaSchool LLM-Engineer course. It is **not production-ready** and makes no claim of being so. Do not use it in real security operations, do not rely on its output for incident response or vulnerability assessment, and treat every generated answer as educational material that must be independently verified against the cited primary sources. Security scanning (`garak`) and local guardrails are included as learning exercises, not as hardened defence in depth.
 
 <img width="1909" height="1086" alt="image" src="https://github.com/user-attachments/assets/6570abf4-1fb7-4bcc-8524-15919788edc9" />
 
@@ -50,7 +50,7 @@ Full design rationale — NFR table with targets, choice of local models/`Recurs
 - **API:** FastAPI + Pydantic structured output (`/health`, `/query`, `/metrics`)
 - **UI:** Gradio mounted at `/gradio`
 - **Orchestration:** Docker Compose (app + Qdrant + Prometheus + Grafana)
-- **Security:** Granite Guardian guardrails + focused `garak` probes
+- **Security:** Llama Guard guardrails + focused `garak` probes
 - **Python:** 3.12, uv + ruff + ty
 
 ## Generator model comparison
@@ -173,15 +173,12 @@ BM25 identifier indexing:
 ## Security testing
 
 `/query` runs input and output guardrails when `GUARDRAILS_ENABLED=true`.
-The guardrail model is `granite-guardian-3.2-5b`, served through the same
+The default guardrail model is `llama-guard-3-8b-imat`, served through the same
 LM Studio OpenAI-compatible API style as the generator. Unsafe user input is
 rejected before retrieval/generation with HTTP 400; unsafe generated output or
-guardrail backend failures are surfaced as HTTP 502. Because this academic MVP
-serves benign MITRE/OWASP security education queries, input guardrails include a
-narrow deterministic pass-through for educational or defensive cybersecurity
-questions that do not request operational abuse. Groundedness checks still run
-on generated answers, but default to audit-only (`GUARDRAILS_BLOCK_GROUNDEDNESS=false`)
-to avoid blocking valid RAG answers on known Granite Guardian false positives.
+guardrail backend failures are surfaced as HTTP 502. The runtime still supports
+the older Granite Guardian yes/no scoring path for local experiments, including
+audit-only groundedness checks with `GUARDRAILS_BLOCK_GROUNDEDNESS=false`.
 
 Run a focused local red-team scan against a running FastAPI app:
 

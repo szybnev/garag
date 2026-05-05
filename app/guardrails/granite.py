@@ -1,4 +1,4 @@
-"""Granite Guardian safety checks over an OpenAI-compatible chat endpoint."""
+"""Runtime guardrail checks over an OpenAI-compatible local endpoint."""
 
 from __future__ import annotations
 
@@ -22,6 +22,8 @@ Stage = Literal["input", "output"]
 _SAFE_TOKEN = "No"  # noqa: S105 - Granite Guardian safety label, not a secret.
 _UNSAFE_TOKEN = "Yes"  # noqa: S105 - Granite Guardian safety label, not a secret.
 _LABEL_RE = re.compile(r"^\s*(?:<[^>]+>\s*)*(yes|no)\b", re.IGNORECASE)
+_LLAMA_SAFE_RE = re.compile(r"^\s*safe\b", re.IGNORECASE)
+_LLAMA_UNSAFE_RE = re.compile(r"^\s*unsafe\b", re.IGNORECASE)
 _MAX_CONTEXT_CHARS = 12000
 _EDUCATIONAL_OR_DEFENSIVE_RE = re.compile(
     r"\b(?:explain|what is|summari[sz]e|describe|detect|mitigat(?:e|ion)|"
@@ -120,7 +122,7 @@ class _Verdict:
 
 
 class GraniteGuardianGuardrails:
-    """Binary yes/no Granite Guardian scorer served by LM Studio."""
+    """Safety scorer served by LM Studio."""
 
     def __init__(
         self,
@@ -147,6 +149,22 @@ class GraniteGuardianGuardrails:
 
     def scan_input(self, question: str) -> None:
         """Check user input before retrieval and generation."""
+        if self._uses_llama_guard():
+            try:
+                verdict = self._score_llama_guard([{"role": "user", "content": question}])
+            except GuardrailError:
+                if self.fail_closed:
+                    raise
+                logger.warning("guardrail input check failed open")
+                return
+            if verdict.unsafe:
+                raise GuardrailInputViolation(
+                    stage="input",
+                    risk_name=_llama_guard_risk_name(verdict.raw),
+                    raw=verdict.raw,
+                )
+            return
+
         if _is_benign_educational_cyber_query(question):
             logger.info("guardrail input allowed by educational cyber policy")
             return
@@ -175,6 +193,27 @@ class GraniteGuardianGuardrails:
         response: QueryResponse,
     ) -> None:
         """Check generated output against harm and RAG groundedness risks."""
+        if self._uses_llama_guard():
+            # LM Studio's Llama Guard chat template returns an empty completion
+            # when the final input role is assistant, so score the pair as text.
+            messages = [
+                {"role": "user", "content": _format_llama_guard_output(question, response.answer)}
+            ]
+            try:
+                verdict = self._score_llama_guard(messages)
+            except GuardrailError:
+                if self.fail_closed:
+                    raise
+                logger.warning("guardrail output check failed open")
+                return
+            if verdict.unsafe:
+                raise GuardrailOutputViolation(
+                    stage="output",
+                    risk_name=_llama_guard_risk_name(verdict.raw),
+                    raw=verdict.raw,
+                )
+            return
+
         context = _format_context(chunks)
         for risk_name in ("harm", "groundedness"):
             prompt = _build_output_prompt(
@@ -228,6 +267,35 @@ class GraniteGuardianGuardrails:
             raise GuardrailError(f"Granite Guardian returned no yes/no label: {raw!r}")
         return _Verdict(unsafe=label == _UNSAFE_TOKEN, raw=raw)
 
+    def _score_llama_guard(self, messages: list[dict[str, str]]) -> _Verdict:
+        payload = {
+            "model": self.model,
+            "messages": messages,
+            "temperature": 0,
+            "max_tokens": 64,
+        }
+        client = self._client or httpx.Client(timeout=self.timeout_s)
+        try:
+            response = client.post(f"{self.base_url}/chat/completions", json=payload)
+            response.raise_for_status()
+        except httpx.HTTPError as exc:
+            raise GuardrailError(f"Llama Guard request failed: {exc}") from exc
+
+        try:
+            data = response.json()
+        except ValueError as exc:
+            raise GuardrailError("Llama Guard returned invalid JSON") from exc
+
+        raw = _extract_message_content(data)
+        if _LLAMA_SAFE_RE.match(raw):
+            return _Verdict(unsafe=False, raw=raw)
+        if _LLAMA_UNSAFE_RE.match(raw):
+            return _Verdict(unsafe=True, raw=raw)
+        raise GuardrailError(f"Llama Guard returned no safe/unsafe label: {raw!r}")
+
+    def _uses_llama_guard(self) -> bool:
+        return "llama-guard" in self.model.lower()
+
 
 def _extract_message_content(data: dict[str, Any]) -> str:
     choices = data.get("choices")
@@ -278,6 +346,17 @@ def _is_benign_educational_cyber_query(question: str) -> bool:
         _EDUCATIONAL_OR_DEFENSIVE_RE.search(question) is not None
         and _CYBER_KNOWLEDGE_RE.search(question) is not None
     )
+
+
+def _llama_guard_risk_name(raw: str) -> str:
+    lines = [line.strip() for line in raw.splitlines() if line.strip()]
+    if len(lines) >= 2:
+        return lines[1]
+    return "llama_guard"
+
+
+def _format_llama_guard_output(question: str, answer: str) -> str:
+    return f"User request:\n{question}\n\nAssistant response:\n{answer}"
 
 
 def _build_input_prompt(question: str, *, risk_name: str) -> str:

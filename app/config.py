@@ -75,7 +75,7 @@ class Settings(BaseSettings):
     # Guardrails
     guardrails_enabled: bool = True
     guardrails_base_url: str = "http://localhost:1234/v1"
-    guardrails_model: str = "granite-guardian-3.2-5b"
+    guardrails_model: str = "llama-guard-3-8b-imat"
     guardrails_timeout_s: float = 30.0
     guardrails_fail_closed: bool = True
     guardrails_block_groundedness: bool = False

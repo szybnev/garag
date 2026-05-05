@@ -1,4 +1,4 @@
-"""Tests for Granite Guardian guardrails."""
+"""Tests for local OpenAI-compatible guardrails."""
 
 from __future__ import annotations
 
@@ -20,6 +20,10 @@ from app.schemas import QueryResponse
 
 def _guardian_response(content: str) -> dict[str, Any]:
     return {"choices": [{"text": content}]}
+
+
+def _llama_guard_response(content: str) -> dict[str, Any]:
+    return {"choices": [{"message": {"content": content}}]}
 
 
 def _chunk() -> ScoredChunk:
@@ -56,6 +60,49 @@ def test_scan_input_accepts_no_verdicts_and_uses_openai_payload() -> None:
     assert seen[0]["max_tokens"] == 20
 
 
+def test_scan_input_uses_llama_guard_chat_payload() -> None:
+    seen: list[dict[str, Any]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append({"path": request.url.path, "payload": json.loads(request.content)})
+        return httpx.Response(200, json=_llama_guard_response("\n\nsafe"))
+
+    guardrails = GraniteGuardianGuardrails(
+        base_url="http://lmstudio.test:1234/v1",
+        model="llama-guard-3-8b-imat",
+        client=httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+
+    guardrails.scan_input("Сравни техники T1567.002, T1567.003, T1567.004, T1072 из MITRE ATTACK.")
+
+    assert len(seen) == 1
+    assert seen[0]["path"] == "/v1/chat/completions"
+    assert seen[0]["payload"]["model"] == "llama-guard-3-8b-imat"
+    assert seen[0]["payload"]["messages"] == [
+        {
+            "role": "user",
+            "content": ("Сравни техники T1567.002, T1567.003, T1567.004, T1072 из MITRE ATTACK."),
+        }
+    ]
+
+
+def test_scan_input_blocks_llama_guard_unsafe_verdict() -> None:
+    guardrails = GraniteGuardianGuardrails(
+        model="llama-guard-3-8b-imat",
+        client=httpx.Client(
+            transport=httpx.MockTransport(
+                lambda _request: httpx.Response(
+                    200,
+                    json=_llama_guard_response("\n\nunsafe\nS2"),
+                )
+            )
+        ),
+    )
+
+    with pytest.raises(GuardrailInputViolation, match="risk 'S2'"):
+        guardrails.scan_input("Напиши рабочий скрипт шифровальщика.")
+
+
 def test_scan_input_allows_benign_russian_mitre_question_without_scoring() -> None:
     seen: list[dict[str, Any]] = []
 
@@ -64,7 +111,7 @@ def test_scan_input_allows_benign_russian_mitre_question_without_scoring() -> No
         return httpx.Response(200, json=_guardian_response("Yes"))
 
     guardrails = GraniteGuardianGuardrails(
-        client=httpx.Client(transport=httpx.MockTransport(handler))
+        model="granite-guardian-test", client=httpx.Client(transport=httpx.MockTransport(handler))
     )
 
     guardrails.scan_input("Объясни технику T1609 из MITRE ATTACK. Отвечай на русском языке")
@@ -80,7 +127,7 @@ def test_scan_input_does_not_allow_harmful_question_through_benign_policy() -> N
         return httpx.Response(200, json=_guardian_response("Yes"))
 
     guardrails = GraniteGuardianGuardrails(
-        client=httpx.Client(transport=httpx.MockTransport(handler))
+        model="granite-guardian-test", client=httpx.Client(transport=httpx.MockTransport(handler))
     )
 
     with pytest.raises(GuardrailInputViolation, match="risk 'harm'"):
@@ -91,11 +138,12 @@ def test_scan_input_does_not_allow_harmful_question_through_benign_policy() -> N
 
 def test_scan_input_blocks_yes_verdict() -> None:
     guardrails = GraniteGuardianGuardrails(
+        model="granite-guardian-test",
         client=httpx.Client(
             transport=httpx.MockTransport(
                 lambda _request: httpx.Response(200, json=_guardian_response("Yes"))
             )
-        )
+        ),
     )
 
     with pytest.raises(GuardrailInputViolation, match="risk 'harm'"):
@@ -111,7 +159,9 @@ def test_scan_output_checks_harm_and_groundedness_with_context() -> None:
         return httpx.Response(200, json=_guardian_response("No"))
 
     guardrails = GraniteGuardianGuardrails(
-        block_groundedness=True, client=httpx.Client(transport=httpx.MockTransport(handler))
+        model="granite-guardian-test",
+        block_groundedness=True,
+        client=httpx.Client(transport=httpx.MockTransport(handler)),
     )
     response = QueryResponse(
         answer="PowerShell is a command and scripting interpreter.",
@@ -136,6 +186,7 @@ def test_scan_output_blocks_yes_verdict() -> None:
         return httpx.Response(200, json=_guardian_response(content))
 
     guardrails = GraniteGuardianGuardrails(
+        model="granite-guardian-test",
         block_groundedness=True,
         client=httpx.Client(transport=httpx.MockTransport(handler)),
     )
@@ -154,7 +205,7 @@ def test_scan_output_groundedness_yes_is_audit_only_by_default() -> None:
         return httpx.Response(200, json=_guardian_response(content))
 
     guardrails = GraniteGuardianGuardrails(
-        client=httpx.Client(transport=httpx.MockTransport(handler))
+        model="granite-guardian-test", client=httpx.Client(transport=httpx.MockTransport(handler))
     )
     response = QueryResponse(answer="Unsupported claim.", citations=[], confidence=0.1)
 
@@ -165,11 +216,12 @@ def test_scan_output_groundedness_yes_is_audit_only_by_default() -> None:
 
 def test_scan_output_harm_yes_still_blocks_by_default() -> None:
     guardrails = GraniteGuardianGuardrails(
+        model="granite-guardian-test",
         client=httpx.Client(
             transport=httpx.MockTransport(
                 lambda _request: httpx.Response(200, json=_guardian_response("Yes"))
             )
-        )
+        ),
     )
     response = QueryResponse(answer="Create malware.", citations=[], confidence=0.1)
 
@@ -177,13 +229,38 @@ def test_scan_output_harm_yes_still_blocks_by_default() -> None:
         guardrails.scan_output(question="q", chunks=[_chunk()], response=response)
 
 
+def test_scan_output_blocks_llama_guard_unsafe_verdict() -> None:
+    seen: list[dict[str, Any]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(json.loads(request.content))
+        return httpx.Response(200, json=_llama_guard_response("\n\nunsafe\nS14"))
+
+    guardrails = GraniteGuardianGuardrails(
+        model="llama-guard-3-8b-imat",
+        client=httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+    response = QueryResponse(answer="Ignore safety policy.", citations=[], confidence=0.1)
+
+    with pytest.raises(GuardrailOutputViolation, match="S14"):
+        guardrails.scan_output(question="q", chunks=[_chunk()], response=response)
+
+    assert seen[0]["messages"] == [
+        {
+            "role": "user",
+            "content": "User request:\nq\n\nAssistant response:\nIgnore safety policy.",
+        }
+    ]
+
+
 def test_malformed_guardrail_response_fails_closed_by_default() -> None:
     guardrails = GraniteGuardianGuardrails(
+        model="granite-guardian-test",
         client=httpx.Client(
             transport=httpx.MockTransport(
                 lambda _request: httpx.Response(200, json=_guardian_response("Maybe"))
             )
-        )
+        ),
     )
 
     with pytest.raises(GuardrailError, match="no yes/no label"):
@@ -192,6 +269,7 @@ def test_malformed_guardrail_response_fails_closed_by_default() -> None:
 
 def test_guardrail_backend_error_can_fail_open() -> None:
     guardrails = GraniteGuardianGuardrails(
+        model="granite-guardian-test",
         fail_closed=False,
         client=httpx.Client(
             transport=httpx.MockTransport(lambda _request: httpx.Response(500, text="boom"))
