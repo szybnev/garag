@@ -11,7 +11,7 @@ Health: `{"status": "ok", "pipeline_loaded": true, "version": "0.1.0"}`
 |---|---:|---:|---|
 | p95 e2e latency (warm) | 2137 ms | ≤ 8000 ms | PASS |
 | Throughput | 0.826 RPS | ≥ 0.5 RPS | PASS |
-| Indexing time | not run | ≤ 1200 s | NOT RUN |
+| Indexing time | 10.1 s | ≤ 1200 s | PASS |
 
 ## Throughput note
 
@@ -31,7 +31,10 @@ The v0.1.0 throughput target is scoped to a single local FastAPI instance backed
 
 ## Indexing Phase
 
-Not run. Pass `--run-indexing` to measure full Qdrant rebuild time.
+The latest dense indexing measurement is captured in
+`experiments/02_indexing_and_hnsw.ipynb`: `scripts/build_qdrant.py` rebuilt the
+Qdrant collection in 10.1 s for the current 3,900-chunk corpus. Sparse BM25
+tokenize + fit is reported there as `<0.1 s`.
 
 ## Per-query Latency
 

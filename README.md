@@ -18,6 +18,8 @@ runner are wired for local hardening checks.
 
 Target release: **v0.1.0-garag** — 2026-04-24.
 
+Demo video for the final submission: [`demo.mp4`](./demo.mp4).
+
 ## Architecture (high level)
 
 ```
