@@ -224,17 +224,6 @@ are enriched with the current list of related techniques from
 and the technique list. Procedure examples from ATT&CK `relationship` objects
 are still not indexed in the MVP.
 
-## What's NOT in GaRAG (see `docs/roadmap.md`)
-
-- Comparison of 3 embedding models (E1)
-- 10-LLM benchmark (E6)
-- GraphRAG, Agentic RAG
-- Fine-tuning (QLoRA / DPO)
-- Extended golden set (100–150 pairs)
-- Production-grade security hardening beyond the academic guardrail/garak checks
-
-These are tracked as out-of-scope roadmap items in [`docs/roadmap.md`](./docs/roadmap.md).
-
 ## License
 
 [MIT](./LICENSE)
