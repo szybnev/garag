@@ -2,7 +2,7 @@
 
 Guidance for Codex GPT-5.5 and other coding agents working in this repository.
 Keep this file practical: it should help the next agent act correctly without
-having to reconstruct project context from `CLAUDE.md`.
+having to reconstruct project context from stale planning notes.
 
 ## Project Context
 
